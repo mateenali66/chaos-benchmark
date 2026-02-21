@@ -168,6 +168,20 @@ def start_port_forward(namespace: str, service: str, local_port: int, remote_por
     time.sleep(3)
     if proc.poll() is not None:
         raise RuntimeError(f"Port-forward to {service}:{remote_port} failed to start")
+
+    # Health check: verify endpoint is actually responding
+    if local_port == PROMETHEUS_PORT:
+        for attempt in range(10):
+            try:
+                resp = query_prometheus_instant("up")
+                if resp.get("status") == "success":
+                    break
+            except Exception:
+                pass
+            time.sleep(2)
+        else:
+            print("  WARNING: Prometheus health check failed after 20s", file=sys.stderr)
+
     return proc
 
 
@@ -299,7 +313,12 @@ def parse_wrk2_output(log_text: str) -> dict:
     }
 
     if not log_text:
+        print("  WARNING: wrk2 log output is empty", file=sys.stderr)
         return result
+
+    # Show preview of raw output for debugging
+    preview = log_text.strip()[-500:] if len(log_text) > 500 else log_text.strip()
+    print(f"  wrk2 output preview:\n    {preview[:200]}...")
 
     # Throughput: "Requests/sec:   987.50"
     m = re.search(r'Requests/sec:\s+([\d.]+)', log_text)
@@ -318,17 +337,22 @@ def parse_wrk2_output(log_text: str) -> dict:
             dur_val *= 3600
         result["duration_s"] = int(dur_val)
 
-    # Latency percentiles from the detailed histogram
-    # wrk2 with -L flag outputs lines like: "50.000%    2.10ms"
+    # Latency percentiles - try two formats:
+    # Format A (standard wrk2): "50.000%    2.10ms"
+    # Format B (wrk2 -L histogram): "206065.420     0.500000        29483       2.00"
+    #   where col1=microseconds, col2=percentile fraction
+
+    # Try Format A first (with unit suffixes)
     percentile_map = {
         "50.000": "p50",
         "95.000": "p95",
         "99.000": "p99",
         "99.900": "p999",
     }
+    format_a_found = False
     for line in log_text.split("\n"):
         for pct_str, key in percentile_map.items():
-            if pct_str in line:
+            if pct_str + "%" in line:
                 m = re.search(r'([\d.]+)(us|ms|s)', line)
                 if m:
                     val = float(m.group(1))
@@ -338,6 +362,35 @@ def parse_wrk2_output(log_text: str) -> dict:
                     elif unit == "s":
                         val *= 1000.0
                     result["latency_ms"][key] = val
+                    format_a_found = True
+
+    # If Format A didn't work, try Format B (HdrHistogram detailed output)
+    if not format_a_found:
+        # Parse: "VALUE  PERCENTILE  COUNT  1/(1-PERCENTILE)"
+        # Values are in microseconds, percentiles are fractions (0.500000 = p50)
+        target_pcts = {"p50": 0.5, "p95": 0.95, "p99": 0.99, "p999": 0.999}
+        best = {k: (None, 1.0) for k in target_pcts}  # key -> (value_us, distance)
+        for line in log_text.split("\n"):
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                try:
+                    val_us = float(parts[0])
+                    pct = float(parts[1])
+                    if 0.0 < pct <= 1.0 and val_us > 0:
+                        for key, target in target_pcts.items():
+                            dist = abs(pct - target)
+                            if dist < best[key][1]:
+                                best[key] = (val_us, dist)
+                except ValueError:
+                    continue
+        for key, (val_us, _) in best.items():
+            if val_us is not None:
+                result["latency_ms"][key] = val_us / 1000.0  # convert us to ms
+
+    # Also extract mean latency from histogram summary
+    m = re.search(r'#\[Mean\s*=\s*([\d.]+)', log_text)
+    if m:
+        result["latency_ms"]["mean"] = float(m.group(1)) / 1000.0  # us to ms
 
     # Socket errors: "Socket errors: connect 0, read 3, write 0, timeout 1"
     m = re.search(r'Socket errors:\s*connect\s+(\d+),\s*read\s+(\d+),\s*write\s+(\d+),\s*timeout\s+(\d+)', log_text)
@@ -543,7 +596,7 @@ def run_experiment(tool: str, scenario: str, run_number: int, dry_run: bool = Fa
         wait_for_job(job_name, NAMESPACE, timeout=120)
         wrk2_logs = kubectl_logs(job_name, NAMESPACE)
         results["wrk2"] = parse_wrk2_output(wrk2_logs)
-        results["wrk2"]["raw_output"] = wrk2_logs[-2000:] if len(wrk2_logs) > 2000 else wrk2_logs
+        results["wrk2"]["raw_output"] = wrk2_logs[-5000:] if len(wrk2_logs) > 5000 else wrk2_logs
 
         # Compute derived metrics
         results["derived"] = compute_derived_metrics(results["phases"])

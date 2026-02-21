@@ -18,7 +18,7 @@ spec:
             - name: TARGET_CONTAINER
               value: nginx-thrift
             - name: TOTAL_CHAOS_DURATION
-              value: "30"
+              value: "120"
             - name: CHAOS_INTERVAL
               value: "10"
             - name: SOCKET_PATH
