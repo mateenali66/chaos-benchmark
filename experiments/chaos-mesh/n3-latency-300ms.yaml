@@ -1,0 +1,18 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: n3-latency-300ms
+  namespace: social-network
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: user-timeline-service
+  delay:
+    latency: "300ms"
+    jitter: "50ms"
+    correlation: "50"
+  duration: "120s"

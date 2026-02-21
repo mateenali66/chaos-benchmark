@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: HTTPChaos
+metadata:
+  name: a1-http-abort-503
+  namespace: social-network
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: nginx-thrift
+  target: Response
+  abort: true
+  port: 8080
+  duration: "120s"

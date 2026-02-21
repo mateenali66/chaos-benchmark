@@ -1,0 +1,18 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: n1-latency-50ms
+  namespace: social-network
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: social-graph-service
+  delay:
+    latency: "50ms"
+    jitter: "10ms"
+    correlation: "50"
+  duration: "120s"

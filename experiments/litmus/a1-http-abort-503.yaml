@@ -1,0 +1,33 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: a1-http-abort-503
+  namespace: social-network
+spec:
+  engineState: active
+  appinfo:
+    appns: social-network
+    applabel: app=nginx-thrift
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-http-status-code
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: STATUS_CODE
+              value: "503"
+            - name: MODIFY_RESPONSE_BODY
+              value: "true"
+            - name: RESPONSE_BODY
+              value: "service unavailable"
+            - name: TARGET_SERVICE_PORT
+              value: "8080"
+            - name: TOXICS_PERIOD
+              value: "120"
+            - name: CONTAINER_RUNTIME
+              value: containerd
+            - name: SOCKET_PATH
+              value: /run/containerd/containerd.sock

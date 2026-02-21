@@ -1,0 +1,14 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: p1-pod-kill
+  namespace: social-network
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: compose-post-service
+  gracePeriod: 0

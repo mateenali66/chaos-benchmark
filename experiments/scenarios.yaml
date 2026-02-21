@@ -1,0 +1,254 @@
+################################################################################
+# Master Experiment Scenarios
+# 12 scenarios for chaos engineering benchmark (Paper 4)
+# Each scenario: 5 min baseline + 2 min fault + 1 min recovery + 1 min cooldown
+################################################################################
+
+metadata:
+  total_scenarios: 12
+  repetitions_per_scenario: 5
+  tools: [chaos-mesh, litmus, gremlin]
+  total_experiments: 180
+  estimated_hours: 33
+  target_namespace: social-network
+
+scenarios:
+  # Pod/Container Faults
+  - id: P1
+    name: Pod Kill
+    category: pod
+    description: Immediate pod termination to test restart recovery
+    hypothesis: "The compose-post-service will restart within 30s due to Kubernetes restart policy"
+    target:
+      kind: Deployment
+      name: compose-post-service
+      namespace: social-network
+    parameters:
+      action: pod-kill
+      mode: one
+    duration: instant
+    fault_window: 120s
+
+  - id: P2
+    name: Container Kill
+    category: pod
+    description: Kill container process without deleting the pod
+    hypothesis: "Container restart will be faster than pod restart since the pod is preserved"
+    target:
+      kind: Deployment
+      name: nginx-thrift
+      namespace: social-network
+    parameters:
+      action: container-kill
+      container_names: [nginx-thrift]
+    duration: instant
+    fault_window: 120s
+
+  - id: P3
+    name: Pod Failure
+    category: pod
+    description: Continuous pod failures over 2 minutes
+    hypothesis: "Sustained failures will degrade user-service availability below 90%"
+    target:
+      kind: Deployment
+      name: user-service
+      namespace: social-network
+    parameters:
+      action: pod-failure
+      mode: one
+    duration: 120s
+    fault_window: 120s
+
+  # Network Faults
+  - id: N1
+    name: Network Latency 50ms
+    category: network
+    description: Add 50ms latency to test minor degradation
+    hypothesis: "50ms additional latency will cause <5% throughput degradation"
+    target:
+      kind: Deployment
+      name: social-graph-service
+      namespace: social-network
+    parameters:
+      action: delay
+      latency: 50ms
+      jitter: 10ms
+      correlation: "50"
+    duration: 120s
+    fault_window: 120s
+
+  - id: N2
+    name: Network Latency 100ms
+    category: network
+    description: Add 100ms latency to test moderate degradation
+    hypothesis: "100ms latency will cause 10-20% throughput degradation and visible p99 spikes"
+    target:
+      kind: Deployment
+      name: post-storage-service
+      namespace: social-network
+    parameters:
+      action: delay
+      latency: 100ms
+      jitter: 20ms
+      correlation: "50"
+    duration: 120s
+    fault_window: 120s
+
+  - id: N3
+    name: Network Latency 300ms
+    category: network
+    description: Add 300ms latency to test severe degradation
+    hypothesis: "300ms latency will cause >30% throughput degradation and timeout errors"
+    target:
+      kind: Deployment
+      name: user-timeline-service
+      namespace: social-network
+    parameters:
+      action: delay
+      latency: 300ms
+      jitter: 50ms
+      correlation: "50"
+    duration: 120s
+    fault_window: 120s
+
+  - id: N4
+    name: Packet Loss 5%
+    category: network
+    description: Drop 5% of packets to test retransmission handling
+    hypothesis: "5% packet loss will cause retry storms and >10% throughput reduction"
+    target:
+      kind: Deployment
+      name: home-timeline-service
+      namespace: social-network
+    parameters:
+      action: loss
+      loss: "5"
+      correlation: "25"
+    duration: 120s
+    fault_window: 120s
+
+  - id: N5
+    name: Network Partition
+    category: network
+    description: Full network isolation of media-service
+    hypothesis: "Network partition will cause complete media upload failures but other operations continue"
+    target:
+      kind: Deployment
+      name: media-service
+      namespace: social-network
+    parameters:
+      action: partition
+      direction: both
+    duration: 60s
+    fault_window: 60s
+
+  # Resource Faults
+  - id: R1
+    name: CPU Stress 80%
+    category: resource
+    description: Consume 80% CPU on compose-post-service pods
+    hypothesis: "CPU stress will increase latency by >100ms and reduce throughput by >20%"
+    target:
+      kind: Deployment
+      name: compose-post-service
+      namespace: social-network
+    parameters:
+      stressors:
+        cpu:
+          workers: 2
+          load: 80
+    duration: 120s
+    fault_window: 120s
+
+  - id: R2
+    name: Memory Pressure 80%
+    category: resource
+    description: Consume 80% of memory limit on post-storage-service
+    hypothesis: "Memory pressure will trigger OOMKills or GC pauses affecting response time"
+    target:
+      kind: Deployment
+      name: post-storage-service
+      namespace: social-network
+    parameters:
+      stressors:
+        memory:
+          workers: 1
+          size: "80%"
+    duration: 120s
+    fault_window: 120s
+
+  # Application Faults
+  - id: A1
+    name: HTTP Abort 503
+    category: application
+    description: Return 503 for 50% of HTTP requests to nginx-thrift
+    hypothesis: "50% abort rate will cause client-visible errors but remaining requests succeed"
+    target:
+      kind: Deployment
+      name: nginx-thrift
+      namespace: social-network
+    parameters:
+      abort: true
+      status_code: 503
+      percentage: 50
+      port: 8080
+    duration: 120s
+    fault_window: 120s
+
+  - id: A2
+    name: gRPC Unavailable
+    category: application
+    description: Inject UNAVAILABLE errors on user-service gRPC calls
+    hypothesis: "gRPC errors will cascade to dependent services causing auth failures"
+    target:
+      kind: Deployment
+      name: user-service
+      namespace: social-network
+    parameters:
+      abort: true
+      grpc_status: 14
+      percentage: 50
+    duration: 120s
+    fault_window: 120s
+
+################################################################################
+# Protocol
+################################################################################
+
+protocol:
+  phases:
+    - name: baseline
+      duration: 300s
+      description: "Warm up and collect steady-state metrics"
+    - name: fault
+      duration: 120s
+      description: "Inject fault and measure impact"
+    - name: recovery
+      duration: 60s
+      description: "Remove fault and measure TTR"
+    - name: cooldown
+      duration: 60s
+      description: "Ensure system stability before next run"
+
+  load_generator:
+    tool: wrk2
+    threads: 4
+    connections: 100
+    rate: 1000
+    workload_mix:
+      compose_post: 40
+      read_timeline: 30
+      read_post: 20
+      follow_user: 10
+
+  metrics:
+    primary: [ttd, ttr, error_rate, throughput_degradation]
+    overhead: [tool_cpu, tool_memory, network_overhead]
+    tool_specific: [resilience_score, reliability_score]
+
+  statistics:
+    repetitions: 5
+    tests: [wilcoxon_signed_rank, kruskal_wallis]
+    effect_size: cliffs_delta
+    correction: bonferroni
+    confidence: 0.95

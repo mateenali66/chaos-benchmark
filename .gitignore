@@ -1,0 +1,36 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan
+terraform/.terraform.lock.hcl
+
+# Experiment data (large JSON/CSV files in subdirectories)
+data/**/*.json
+data/*.json
+data/*.csv
+data/*.parquet
+data/progress.log
+!data/.gitkeep
+
+# Credentials and secrets
+*.pem
+*.key
+*.env
+gremlin-credentials.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DeathStarBench submodule (tracked by .gitmodules, don't ignore)
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
