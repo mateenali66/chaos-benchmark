@@ -1,0 +1,27 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: a2-grpc-unavailable
+  namespace: social-network
+spec:
+  engineState: active
+  appinfo:
+    appns: social-network
+    applabel: app=user-service
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-http-status-code
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: "120"
+            - name: STATUS_CODE
+              value: "503"
+            - name: TARGET_SERVICE_PORT
+              value: "9090"
+            - name: CONTAINER_RUNTIME
+              value: containerd
+            - name: SOCKET_PATH
+              value: /run/containerd/containerd.sock

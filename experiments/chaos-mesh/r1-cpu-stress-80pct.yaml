@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: r1-cpu-stress-80pct
+  namespace: social-network
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: compose-post-service
+  stressors:
+    cpu:
+      workers: 2
+      load: 80
+  duration: "120s"

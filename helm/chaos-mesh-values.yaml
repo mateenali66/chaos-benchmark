@@ -1,0 +1,30 @@
+################################################################################
+# Chaos Mesh Helm values
+# containerd runtime, privileged DaemonSet, cluster-scoped
+################################################################################
+
+# Runtime configuration (EKS uses containerd since 1.24)
+chaosDaemon:
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock
+  privileged: true
+
+# Dashboard
+dashboard:
+  securityMode: false
+  service:
+    type: ClusterIP
+
+# Controller manager
+controllerManager:
+  replicaCount: 1
+
+# DNS server for DNSChaos
+dnsServer:
+  create: true
+
+# Cluster-scoped (can inject faults in any namespace)
+clusterScoped: true
+
+# Namespace to watch (empty = all namespaces)
+targetNamespace: ""

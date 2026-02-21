@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: HTTPChaos
+metadata:
+  name: a2-grpc-unavailable
+  namespace: social-network
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: user-service
+  target: Response
+  abort: true
+  port: 9090
+  duration: "120s"

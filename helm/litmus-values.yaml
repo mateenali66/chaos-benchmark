@@ -1,0 +1,45 @@
+################################################################################
+# LitmusChaos 3.x Helm values
+# Single MongoDB replica, gp2 storage
+################################################################################
+
+# Portal (ChaosCenter UI)
+portal:
+  server:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 300Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  frontend:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  auth:
+    replicas: 1
+
+# MongoDB (single-node replicaset for research)
+mongodb:
+  architecture: replicaset
+  replicaCount: 1
+  persistence:
+    enabled: true
+    storageClass: gp2
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

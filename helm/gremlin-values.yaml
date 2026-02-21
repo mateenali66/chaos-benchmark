@@ -1,0 +1,25 @@
+################################################################################
+# Gremlin Helm values (template)
+# Credentials must be provided at install time via --set flags:
+#   --set gremlin.secret.teamID=YOUR_TEAM_ID
+#   --set gremlin.secret.teamSecret=YOUR_TEAM_SECRET
+# Or via environment variables:
+#   --set gremlin.secret.managed=true
+#   --set gremlin.secret.teamID=$GREMLIN_TEAM_ID
+#   --set gremlin.secret.teamSecret=$GREMLIN_TEAM_SECRET
+################################################################################
+
+# Container runtime (EKS uses containerd)
+gremlin:
+  container:
+    driver: containerd
+    runtime: /run/containerd/containerd.sock
+  collect:
+    processes: true
+    dns: true
+  hostPID: true
+  hostNetwork: false
+
+# DaemonSet runs on all nodes
+nodeSelector: {}
+tolerations: []

@@ -1,0 +1,14 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: p3-pod-failure
+  namespace: social-network
+spec:
+  action: pod-failure
+  mode: one
+  duration: "120s"
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: user-service

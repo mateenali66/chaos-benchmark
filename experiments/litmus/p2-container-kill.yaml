@@ -1,0 +1,27 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: p2-container-kill
+  namespace: social-network
+spec:
+  engineState: active
+  appinfo:
+    appns: social-network
+    applabel: app=nginx-thrift
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: container-kill
+      spec:
+        components:
+          env:
+            - name: TARGET_CONTAINER
+              value: nginx-thrift
+            - name: TOTAL_CHAOS_DURATION
+              value: "30"
+            - name: CHAOS_INTERVAL
+              value: "10"
+            - name: SOCKET_PATH
+              value: /run/containerd/containerd.sock
+            - name: CONTAINER_RUNTIME
+              value: containerd

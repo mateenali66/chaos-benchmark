@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: p2-container-kill
+  namespace: social-network
+spec:
+  action: container-kill
+  mode: one
+  containerNames:
+    - nginx-thrift
+  selector:
+    namespaces:
+      - social-network
+    labelSelectors:
+      app: nginx-thrift
+  gracePeriod: 0
