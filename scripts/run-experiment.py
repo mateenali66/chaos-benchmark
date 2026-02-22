@@ -50,7 +50,7 @@ TOTAL_LOAD_DURATION = BASELINE_DURATION + FAULT_DURATION + RECOVERY_DURATION
 # Load generator defaults
 WRK_THREADS = "4"
 WRK_CONNECTIONS = "100"
-WRK_RATE = "1000"
+WRK_RATE = "200"
 
 # Prometheus
 PROMETHEUS_PORT = 9090
@@ -576,6 +576,16 @@ def run_experiment(tool: str, scenario: str, run_number: int, dry_run: bool = Fa
         recovery_start = time.time()
         kubectl_delete_file(str(experiment_path))
         print(f"    Fault removed at {datetime.now().strftime('%H:%M:%S')}")
+
+        # HTTPChaos experiments (a1, a2) leave stale iptables rules in the target
+        # pod's network namespace. Restart the target deployment to clear them.
+        if scenario_lower in ("a1", "a2"):
+            target_deploy = "nginx-thrift" if scenario_lower == "a1" else "user-service"
+            print(f"    Restarting {target_deploy} to clear stale network rules...")
+            run_cmd(["kubectl", "rollout", "restart", f"deployment/{target_deploy}",
+                     "-n", NAMESPACE], timeout=30)
+            run_cmd(["kubectl", "rollout", "status", f"deployment/{target_deploy}",
+                     "-n", NAMESPACE, "--timeout=60s"], timeout=90)
         time.sleep(RECOVERY_DURATION)
         recovery_end = time.time()
 
