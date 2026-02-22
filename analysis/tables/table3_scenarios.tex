@@ -1,0 +1,23 @@
+\begin{table}[ht]
+\centering
+\caption{Fault injection scenarios and parameters}
+\label{tab:scenarios}
+\begin{tabular}{clllc}
+\hline
+\textbf{ID} & \textbf{Category} & \textbf{Scenario} & \textbf{Parameters} & \textbf{Target} \\
+\hline
+P1 & Pod/Container & Pod Kill & mode: one & compose-post \\
+P2 & Pod/Container & Container Kill & mode: one & compose-post \\
+P3 & Pod/Container & Pod Failure & duration: 120s & compose-post \\
+N1 & Network & Latency Injection & 50ms delay & compose-post \\
+N2 & Network & Latency Injection & 100ms delay & compose-post \\
+N3 & Network & Latency Injection & 300ms delay & compose-post \\
+N4 & Network & Packet Loss & 5\% loss rate & compose-post \\
+N5 & Network & Network Partition & full partition & compose-post \\
+R1 & Resource & CPU Stress & 80\% utilization & compose-post \\
+R2 & Resource & Memory Pressure & 80\% utilization & compose-post \\
+A1 & Application & HTTP Abort & 503 status code & nginx-thrift \\
+A2 & Application & gRPC Error & UNAVAILABLE & user-service \\
+\hline
+\end{tabular}
+\end{table}

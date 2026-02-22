@@ -1,0 +1,29 @@
+\begin{table}[ht]
+\centering
+\caption{Resource overhead during fault injection}
+\label{tab:overhead}
+\small
+\begin{tabular}{clrrrr}
+\hline
+\textbf{ID} & \textbf{Scenario} & \multicolumn{2}{c}{\textbf{CPU Spike (\%)}} & \multicolumn{2}{c}{\textbf{Memory Spike (MB)}} \\
+& & CM & LT & CM & LT \\
+\hline
+P1 & Pod Kill & 5560 & 902 & 181.5 & 177.1 \\
+P2 & Container Kill & 18731 & 20236 & 185.5 & 158.1 \\
+P3 & Pod Failure & 7548 & 1004 & 153.5 & 167.9 \\
+N1 & Latency 50ms & 2749 & 1597 & 162.8 & 154.4 \\
+N2 & Latency 100ms & 2910 & 1054 & 170.4 & 187.0 \\
+N3 & Latency 300ms & 2264 & 1166 & 168.9 & 162.3 \\
+N4 & Packet Loss 5\% & 3574 & 915 & 167.3 & 180.0 \\
+N5 & Network Partition & 3394 & 1192 & 182.5 & 167.7 \\
+R1 & CPU Stress 80\% & 812 & 1076 & 174.8 & 146.1 \\
+R2 & Memory Pressure 80\% & 795 & 1266 & 64.0 & 150.3 \\
+A1 & HTTP Abort 503 & 34076 & 51065 & 166.4 & 285.6 \\
+A2 & gRPC Unavailable & 980 & 39804 & 165.1 & 164.8 \\
+\hline
+& \textbf{Overall} & \textbf{6949} & \textbf{10106} & \textbf{161.9} & \textbf{175.1} \\
+\hline
+\end{tabular}
+\vspace{2mm}
+\raggedright\footnotesize CPU Spike = percentage increase in aggregate CPU usage during fault phase relative to baseline. Memory Spike = absolute increase in aggregate memory usage (MB). Negative CPU values indicate the killed pod's CPU contribution dropped to zero.
+\end{table}

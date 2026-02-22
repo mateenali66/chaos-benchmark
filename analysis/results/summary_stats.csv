@@ -1,0 +1,25 @@
+tool,scenario,scenario_name,category,n,rps_mean,rps_median,rps_stdev,rps_ci95,p50_mean,p99_mean,latency_mean,error_rate_mean,pod_restarts_mean,cpu_spike_mean,memory_spike_mean
+Chaos Mesh,a1,HTTP Abort 503,Application,5,19.13,16.41,6.22,7.72,127.11,267.28,128.53,0.879,0.0,34076.14,166.44
+Chaos Mesh,a2,gRPC Unavailable,Application,5,19.41,17.29,3.46,4.3,200.54,430.07,209.97,0.9089,0.0,980.12,165.06
+Chaos Mesh,n1,Latency 50ms,Network,5,32.42,19.51,21.87,27.16,182.78,402.71,194.65,0.6996,0.6,2748.54,162.82
+Chaos Mesh,n2,Latency 100ms,Network,5,42.74,41.38,18.8,23.35,155.69,376.02,170.32,0.6006,0.4,2909.92,170.44
+Chaos Mesh,n3,Latency 300ms,Network,5,22.5,20.15,9.12,11.32,213.5,422.21,220.44,1.5899,0.2,2263.98,168.88
+Chaos Mesh,n4,Packet Loss 5%,Network,5,32.47,28.24,16.62,20.63,162.32,394.21,178.57,0.773,0.4,3573.62,167.26
+Chaos Mesh,n5,Network Partition,Network,5,40.46,44.3,15.72,19.52,212.05,379.58,204.67,0.8617,0.2,3394.16,182.52
+Chaos Mesh,p1,Pod Kill,Pod/Container,5,48.46,52.57,26.3,32.65,182.49,367.84,187.28,0.485,0.8,5560.2,181.48
+Chaos Mesh,p2,Container Kill,Pod/Container,5,38.56,36.94,20.73,25.73,196.56,395.42,202.67,1.9047,1.0,18730.64,185.5
+Chaos Mesh,p3,Pod Failure,Pod/Container,5,43.89,54.76,22.59,28.04,178.48,373.92,177.67,0.8257,2.4,7547.74,153.48
+Chaos Mesh,r1,CPU Stress 80%,Resource,5,25.92,24.05,10.67,13.24,181.6,393.85,190.16,0.9883,0.4,812.3,174.84
+Chaos Mesh,r2,Memory Pressure 80%,Resource,5,29.07,29.01,9.11,11.31,261.17,409.47,230.57,0.4622,1.0,795.34,63.96
+LitmusChaos,a1,HTTP Abort 503,Application,5,17.48,17.26,2.14,2.66,194.2,436.16,198.76,1.0393,0.0,51065.24,285.64
+LitmusChaos,a2,gRPC Unavailable,Application,5,18.59,17.67,3.21,3.98,214.12,432.69,214.55,1.0159,0.0,39804.0,164.84
+LitmusChaos,n1,Latency 50ms,Network,5,16.04,16.09,0.99,1.23,226.68,438.41,227.02,1.4131,0.2,1597.08,154.4
+LitmusChaos,n2,Latency 100ms,Network,5,23.92,25.76,5.63,6.98,206.74,417.49,212.31,0.7621,0.6,1053.76,186.96
+LitmusChaos,n3,Latency 300ms,Network,5,16.78,17.15,2.99,3.72,235.14,434.69,236.39,2.4468,0.2,1166.32,162.34
+LitmusChaos,n4,Packet Loss 5%,Network,5,16.9,15.46,3.47,4.31,252.29,436.31,243.4,1.547,0.8,914.68,179.98
+LitmusChaos,n5,Network Partition,Network,5,17.94,17.98,1.94,2.41,259.63,433.53,233.42,1.0728,1.2,1192.32,167.7
+LitmusChaos,p1,Pod Kill,Pod/Container,5,21.35,16.59,7.65,9.49,197.53,423.89,204.27,0.9057,0.0,901.54,177.12
+LitmusChaos,p2,Container Kill,Pod/Container,5,21.05,15.12,11.15,13.84,124.94,302.02,134.93,4.8003,1.4,20235.6,158.14
+LitmusChaos,p3,Pod Failure,Pod/Container,5,20.21,16.03,7.49,9.3,234.41,425.88,229.02,1.0384,0.6,1004.36,167.92
+LitmusChaos,r1,CPU Stress 80%,Resource,5,22.77,21.76,6.26,7.77,207.67,423.68,209.03,0.713,0.0,1075.7,146.14
+LitmusChaos,r2,Memory Pressure 80%,Resource,5,21.11,21.59,0.76,0.94,210.87,426.4,214.89,0.5851,1.0,1266.22,150.28
