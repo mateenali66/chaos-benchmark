@@ -34,3 +34,18 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# Screenshots (internal only)
+screenshots/
+
+# Terraform variables (contains AWS account IDs)
+terraform/terraform.tfvars
+
+# Project notes
+CLAUDE.md
