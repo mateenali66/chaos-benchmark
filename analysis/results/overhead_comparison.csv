@@ -1,0 +1,25 @@
+tool,scenario,scenario_name,category,baseline_cpu_mean,fault_cpu_mean,cpu_overhead,cpu_overhead_pct,baseline_mem_mb,fault_mem_mb,mem_overhead_mb,mem_overhead_pct
+Chaos Mesh,a1,HTTP Abort 503,Application,0.013638,0.104852,0.091214,668.82,66.12,67.0,0.88,1.33
+Chaos Mesh,a2,gRPC Unavailable,Application,0.016505,0.015007,-0.001498,-9.08,63.64,65.84,2.21,3.47
+Chaos Mesh,n1,Latency 50ms,Network,0.024404,0.043993,0.019589,80.27,58.18,58.35,0.17,0.29
+Chaos Mesh,n2,Latency 100ms,Network,0.026184,0.049524,0.02334,89.14,58.77,61.69,2.92,4.96
+Chaos Mesh,n3,Latency 300ms,Network,0.04893,0.046055,-0.002875,-5.88,62.88,62.72,-0.16,-0.26
+Chaos Mesh,n4,Packet Loss 5%,Network,0.038385,0.0695,0.031116,81.06,62.37,62.58,0.21,0.33
+Chaos Mesh,n5,Network Partition,Network,0.044747,0.069238,0.02449,54.73,60.44,62.28,1.84,3.05
+Chaos Mesh,p1,Pod Kill,Pod/Container,0.027162,0.068763,0.041602,153.16,58.8,57.71,-1.09,-1.85
+Chaos Mesh,p2,Container Kill,Pod/Container,0.024414,0.102415,0.078,319.48,59.07,53.93,-5.15,-8.71
+Chaos Mesh,p3,Pod Failure,Pod/Container,0.028929,0.089889,0.060961,210.73,58.26,58.81,0.55,0.95
+Chaos Mesh,r1,CPU Stress 80%,Resource,0.029833,0.022029,-0.007804,-26.16,61.85,63.52,1.68,2.71
+Chaos Mesh,r2,Memory Pressure 80%,Resource,0.019965,0.017587,-0.002377,-11.91,61.53,36.93,-24.61,-39.99
+LitmusChaos,a1,HTTP Abort 503,Application,0.014352,0.158714,0.144362,1005.87,62.8,65.71,2.91,4.63
+LitmusChaos,a2,gRPC Unavailable,Application,0.01461,0.106559,0.091949,629.37,65.42,61.67,-3.76,-5.74
+LitmusChaos,n1,Latency 50ms,Network,0.036239,0.040777,0.004539,12.52,65.44,62.54,-2.9,-4.43
+LitmusChaos,n2,Latency 100ms,Network,0.019729,0.016701,-0.003028,-15.35,67.09,65.08,-2.01,-3.0
+LitmusChaos,n3,Latency 300ms,Network,0.057874,0.039271,-0.018603,-32.14,66.83,63.85,-2.98,-4.46
+LitmusChaos,n4,Packet Loss 5%,Network,0.028742,0.01726,-0.011482,-39.95,69.34,64.9,-4.45,-6.41
+LitmusChaos,n5,Network Partition,Network,0.016905,0.016977,7.2e-05,0.43,65.8,62.37,-3.43,-5.21
+LitmusChaos,p1,Pod Kill,Pod/Container,0.021203,0.018129,-0.003074,-14.5,68.23,65.54,-2.69,-3.94
+LitmusChaos,p2,Container Kill,Pod/Container,0.02167,0.093257,0.071587,330.36,63.59,54.8,-8.79,-13.82
+LitmusChaos,p3,Pod Failure,Pod/Container,0.01919,0.021078,0.001888,9.84,66.17,62.69,-3.49,-5.27
+LitmusChaos,r1,CPU Stress 80%,Resource,0.018446,0.017037,-0.00141,-7.64,63.59,61.5,-2.1,-3.3
+LitmusChaos,r2,Memory Pressure 80%,Resource,0.015355,0.013645,-0.00171,-11.14,63.04,63.0,-0.05,-0.08
