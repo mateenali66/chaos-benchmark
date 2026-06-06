@@ -37,7 +37,7 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 DATA_DIR = PROJECT_ROOT / "data"
 WRK2_TEMPLATE = PROJECT_ROOT / "load-generator" / "wrk2-job.yaml.tpl"
 
-ECR_REPO = "886604922358.dkr.ecr.us-east-1.amazonaws.com/chaos-benchmark/wrk2"
+ECR_REPO = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/chaos-benchmark/wrk2"
 NAMESPACE = "social-network"
 
 # Protocol timing (seconds)

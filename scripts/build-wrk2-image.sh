@@ -11,7 +11,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export AWS_PROFILE=personal
 export DOCKER_BUILDKIT=1
 AWS_REGION="us-east-1"
-AWS_ACCOUNT_ID="886604922358"
+AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-YOUR_ACCOUNT_ID}"
 ECR_REPO="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/chaos-benchmark/wrk2"
 
 echo "=== Building wrk2 Docker image ==="
