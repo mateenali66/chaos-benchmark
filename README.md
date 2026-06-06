@@ -8,7 +8,7 @@ Reproducibility package for the paper:
 >
 > Submitted to *Software: Practice and Experience* (Wiley), 2026
 
-This repository contains the infrastructure code, experiment definitions, orchestration scripts, raw data, and statistical analysis used to conduct an empirical comparison of **Chaos Mesh 2.8.1** and **LitmusChaos 3.26.0** on a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed running on AWS EKS.
+This repository contains the infrastructure code, experiment definitions, orchestration scripts, and statistical analysis (the raw experiment data is archived on Zenodo, see Data Availability) used to conduct an empirical comparison of **Chaos Mesh 2.8.1** and **LitmusChaos 3.26.0** on a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed running on AWS EKS.
 
 ## Key Results
 
@@ -68,7 +68,7 @@ chaos-benchmark/
 │   ├── architecture_diagram.py  # Architecture diagram (Python diagrams library)
 │   ├── figures/                 # Generated figures (PDF + PNG)
 │   └── results/                 # CSV output (summary stats, statistical tests, etc.)
-├── data/                        # Raw experiment data (120 JSON files, ~48 MB)
+├── data/                        # Raw experiment data: archived on Zenodo (see Data Availability)
 │   ├── chaos-mesh/{scenario}/run-{1..5}.json
 │   └── litmus/{scenario}/run-{1..5}.json
 ├── experiments/
@@ -194,6 +194,14 @@ Each experiment produces a JSON file in `data/{tool}/{scenario}/run-{N}.json` co
 - **Cliff's delta** for effect size (small/medium/large)
 - **Bonferroni correction** for multiple comparisons (36 tests)
 - **95% confidence intervals** computed via t-distribution
+
+## Data Availability
+
+The raw experiment data (120 JSON result files, two tools x 12 scenarios x 5 repetitions) is archived on Zenodo:
+
+- DOI: [10.5281/zenodo.20574917](https://doi.org/10.5281/zenodo.20574917) (concept DOI, always resolves to the latest version), CC BY 4.0.
+
+All infrastructure code, experiment manifests, orchestration scripts, and statistical analysis are in this repository.
 
 ## Citation
 
