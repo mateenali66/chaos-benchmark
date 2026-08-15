@@ -1,6 +1,7 @@
 ################################################################################
 # EKS Module
-# Creates an EKS cluster with SPOT node group for chaos engineering benchmarks
+# Creates an EKS cluster with a single-instance-type managed node group
+# (ON_DEMAND by default) for chaos engineering benchmarks
 ################################################################################
 
 data "aws_caller_identity" "current" {}
@@ -11,6 +12,9 @@ locals {
   cluster_name = var.cluster_name
   account_id   = data.aws_caller_identity.current.account_id
   partition    = data.aws_partition.current.partition
+
+  # Derive a node-group-name-safe label from capacity_type, e.g. ON_DEMAND -> on-demand
+  node_capacity_label = lower(replace(var.capacity_type, "_", "-"))
 }
 
 ################################################################################
@@ -137,17 +141,17 @@ resource "aws_launch_template" "nodes" {
 }
 
 ################################################################################
-# EKS Node Group (SPOT instances)
+# EKS Node Group
 ################################################################################
 
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${local.cluster_name}-spot"
+  node_group_name = "${local.cluster_name}-${local.node_capacity_label}"
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.private_subnet_ids
 
   instance_types = var.node_instance_types
-  capacity_type  = "SPOT"
+  capacity_type  = var.capacity_type
 
   launch_template {
     id      = aws_launch_template.nodes.id
@@ -165,11 +169,11 @@ resource "aws_eks_node_group" "default" {
   }
 
   labels = merge(var.node_labels, {
-    "node-type" = "spot"
+    "node-type" = local.node_capacity_label
   })
 
   tags = merge(var.tags, {
-    Name = "${local.cluster_name}-spot-node"
+    Name = "${local.cluster_name}-${local.node_capacity_label}-node"
   })
 
   depends_on = [

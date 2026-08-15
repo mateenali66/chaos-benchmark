@@ -1,0 +1,31 @@
+You are predicting the effect of a chaos-engineering fault injection on the
+DeathStarBench Social Network application BEFORE it is run. You do not know
+the outcome; predict it from system topology and steady-state behavior only.
+No fault data of any kind is available to you.
+
+TOPOLOGY
+<<<TOPOLOGY_SUMMARY>>>
+
+STEADY-STATE BASELINE (medians per service, no fault active)
+<<<BASELINE_SUMMARY_JSON>>>
+
+CANDIDATE FAULT (not yet injected)
+<<<CANDIDATE_JSON>>>
+
+TASK
+Predict, before this fault is run:
+1. throughput_direction: will aggregate request throughput during the fault
+   window "degrade" relative to baseline, or show "no_meaningful_change"?
+2. degraded_services: which service(s), if any, will have p99 latency
+   exceed 3x their steady-state baseline during the fault window. Return an
+   empty list if you predict none will.
+3. weakness_signal_present: will AT LEAST ONE resilience-weakness signal
+   fire during this injection? A signal fires if: error rate > 5%, ANY
+   service's p99 latency > 3x baseline, the system has not visibly settled
+   60s into recovery, or any pod restarts occur.
+
+<<<PREVIOUS_ERROR_BLOCK>>>
+RESPONSE FORMAT
+Respond with ONLY a single JSON object, no markdown code fences, no
+commentary before or after it, matching this shape exactly:
+{"throughput_direction": "degrade" or "no_meaningful_change", "degraded_services": ["<service name>", ...], "weakness_signal_present": true or false, "rationale": "<one to three sentences>"}

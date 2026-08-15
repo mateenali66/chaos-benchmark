@@ -31,7 +31,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "chaos-benchmark"
+      Project     = "paper4-chaos-benchmark"
       Environment = "research"
       ManagedBy   = "terraform"
     }

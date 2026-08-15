@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Component 4 hypothesis-generation output",
+  "description": "Pre-injection prediction schema for the Component 4 hypothesis-generation study (analysis/PREREGISTRATION.md). One object per (model, candidate, sample). run-hypothesis-generation.py validates responses against this file by hand (required keys, throughput_direction enum, degraded_services drawn from services enum, weakness_signal_present boolean) rather than depending on an external jsonschema package, but the file itself is the single source of truth for the enums both the prompt and the validator use.",
+  "type": "object",
+  "required": ["throughput_direction", "degraded_services", "weakness_signal_present", "rationale"],
+  "additionalProperties": false,
+  "properties": {
+    "throughput_direction": {
+      "type": "string",
+      "enum": ["degrade", "no_meaningful_change"],
+      "description": "Predicted direction of aggregate request throughput during the fault window relative to the steady-state baseline."
+    },
+    "degraded_services": {
+      "type": "array",
+      "description": "Services predicted to have p99 latency exceed 3x their steady-state baseline during the fault window. Empty list if none are predicted to.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "compose-post-service",
+          "user-service",
+          "social-graph-service",
+          "post-storage-service",
+          "home-timeline-service",
+          "user-timeline-service",
+          "media-service",
+          "url-shorten-service",
+          "unique-id-service",
+          "nginx-thrift"
+        ]
+      }
+    },
+    "weakness_signal_present": {
+      "type": "boolean",
+      "description": "Predicted: will at least one resilience-weakness signal (error_rate > 5%, any service p99 > 3x baseline, recovery_time > 60s, pod_restarts > 0) fire during this injection?"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One to three sentences explaining the prediction."
+    }
+  }
+}

@@ -4,6 +4,7 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/*.tfplan
 terraform/.terraform.lock.hcl
+terraform/terraform.tfstate.d/
 
 # Experiment data (large JSON/CSV files in subdirectories)
 data/**/*.json
@@ -12,6 +13,11 @@ data/*.csv
 data/*.parquet
 data/progress.log
 !data/.gitkeep
+
+# Revision-campaign experiment output (data-v2/): same rationale as data/
+# above -- large per-run JSON + gzipped timeseries sidecars, not source.
+# Code/config under data-v2 is never expected; this excludes the whole tree.
+data-v2/
 
 # Credentials and secrets
 *.pem

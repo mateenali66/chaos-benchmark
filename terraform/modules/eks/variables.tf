@@ -69,13 +69,24 @@ variable "cluster_admin_arns" {
 }
 
 ################################################################################
-# Node Group Configuration (SPOT)
+# Node Group Configuration
 ################################################################################
 
 variable "node_instance_types" {
-  description = "Instance types for the SPOT node group (multiple for availability)"
+  description = "Instance types for the node group. Single type only (controls for instance-class heterogeneity as a confound)."
   type        = list(string)
-  default     = ["m5.xlarge", "m5a.xlarge", "m4.xlarge"]
+  default     = ["m5.xlarge"]
+}
+
+variable "capacity_type" {
+  description = "EKS managed node group capacity type: ON_DEMAND or SPOT"
+  type        = string
+  default     = "ON_DEMAND"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.capacity_type)
+    error_message = "capacity_type must be either ON_DEMAND or SPOT."
+  }
 }
 
 variable "node_desired_size" {

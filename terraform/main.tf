@@ -7,6 +7,13 @@ locals {
   tags = merge(var.tags, {
     Cluster = var.cluster_name
   })
+
+  # Shared artifacts bucket name, stable across all three cluster workspaces in
+  # the same account (auto-derived unless explicitly overridden). Only the
+  # workspace with create_s3_bucket = true actually manages this resource; the
+  # others just need the same computed name to write into under their own
+  # cluster-name key prefix (see scripts/export-to-s3.sh).
+  s3_bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "is-chaos-artifacts-${data.aws_caller_identity.current.account_id}"
 }
 
 ################################################################################
@@ -41,6 +48,7 @@ module "eks" {
   public_subnet_ids  = module.vpc.public_subnet_ids
 
   node_instance_types = var.node_instance_types
+  capacity_type       = var.capacity_type
   node_desired_size   = var.node_desired_size
   node_min_size       = var.node_min_size
   node_max_size       = var.node_max_size
@@ -74,22 +82,25 @@ module "eks_addons" {
 ################################################################################
 
 resource "aws_s3_bucket" "data" {
-  bucket = var.s3_bucket_name
+  count  = var.create_s3_bucket ? 1 : 0
+  bucket = local.s3_bucket_name
 
   tags = merge(local.tags, {
-    Name = var.s3_bucket_name
+    Name = local.s3_bucket_name
   })
 }
 
 resource "aws_s3_bucket_versioning" "data" {
-  bucket = aws_s3_bucket.data.id
+  count  = var.create_s3_bucket ? 1 : 0
+  bucket = aws_s3_bucket.data[0].id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
-  bucket = aws_s3_bucket.data.id
+  count  = var.create_s3_bucket ? 1 : 0
+  bucket = aws_s3_bucket.data[0].id
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
@@ -98,7 +109,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
 }
 
 resource "aws_s3_bucket_public_access_block" "data" {
-  bucket = aws_s3_bucket.data.id
+  count  = var.create_s3_bucket ? 1 : 0
+  bucket = aws_s3_bucket.data[0].id
 
   block_public_acls       = true
   block_public_policy     = true

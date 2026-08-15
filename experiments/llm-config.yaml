@@ -1,0 +1,34 @@
+# Frozen LLM configuration for Components 3 (fault selection) and 4 (hypothesis
+# generation). Frozen BEFORE any campaign or generation run per the
+# pre-registration (analysis/PREREGISTRATION.md); do not edit after data
+# collection begins. Verified invokable in ca-central-1 on 2026-08-15
+# (account 759890811490, one-token converse test per model).
+
+region: ca-central-1
+
+models:
+  - arm: llm-claude
+    model_id: global.anthropic.claude-sonnet-5   # inference profile; direct ID rejects on-demand invocation in ca-central-1
+    provider: Anthropic
+  - arm: llm-llama
+    model_id: meta.llama3-70b-instruct-v1:0
+    provider: Meta
+  - arm: llm-mistral
+    model_id: mistral.mistral-large-2402-v1:0
+    provider: Mistral
+
+component3_selection:
+  temperature: 0.2
+  max_tokens: 1024
+  # Bedrock does not expose a sampling seed across all providers; determinism
+  # is addressed by logging the full request/response transcript per decision
+  # (data/campaigns/{arm}/campaign-N/llm-transcript.jsonl) and pinning model
+  # IDs above. Prompt template: prompts/selection.txt (frozen with this file).
+
+component4_hypothesis:
+  temperature: 0.7
+  max_tokens: 2048
+  samples_per_candidate: 5
+  # Prompt template: prompts/hypothesis.txt (frozen with this file). Output
+  # must validate against the JSON schema in prompts/hypothesis-schema.json;
+  # schema-invalid generations are retried up to 3x and retries are logged.

@@ -1,0 +1,18 @@
+version: 0.2
+
+env:
+  variables:
+    ECR_REPO: "759890811490.dkr.ecr.ca-central-1.amazonaws.com/chaos-benchmark/wrk2"
+    AWS_REGION_NAME: "ca-central-1"
+
+phases:
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region $AWS_REGION_NAME | docker login --username AWS --password-stdin ${ECR_REPO%%/*}
+  build:
+    commands:
+      - docker build -t $ECR_REPO:latest .
+  post_build:
+    commands:
+      - docker push $ECR_REPO:latest
+      - docker inspect --format='{{index .RepoDigests 0}}' $ECR_REPO:latest || true
