@@ -28,8 +28,8 @@ output "vpc_id" {
 }
 
 output "s3_bucket" {
-  description = "S3 bucket for experiment data"
-  value       = aws_s3_bucket.data.bucket
+  description = "S3 bucket for experiment data (shared across all three cluster workspaces; resolves to the same name whether or not this workspace owns/creates it)"
+  value       = local.s3_bucket_name
 }
 
 output "account_id" {

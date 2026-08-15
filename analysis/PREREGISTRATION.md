@@ -1,0 +1,70 @@
+# Pre-Registered Statistical Analysis Plan
+
+Registered before any data collection for the revised study. The commit introducing this file predates the first experimental run of the revision campaign; the manuscript will cite this commit hash as the pre-registration record. No analysis decision below may be changed after data collection begins; any deviation must be disclosed in the manuscript with rationale.
+
+## Study components
+
+### Component 1: Tool benchmark (RQ2)
+
+- Design: 12 fault scenarios x 2 tools (Chaos Mesh 2.8.x, LitmusChaos 3.x) x **n = 30 repetitions** per cell = 720 runs.
+- Infrastructure: two identical EKS clusters (ca-central-1, 3x m5.xlarge, ON_DEMAND, single instance type), runs strictly serial within a cluster. Identical AMI, Kubernetes version, and DeathStarBench deployment on both.
+- **AMENDMENT 2026-08-15 (before any Component 1 data collection; overhead-stage pilot data motivated both changes):**
+  1. **Crossover allocation replaces one-tool-per-cluster.** Component 2 stage (a) pilot baselines revealed material inter-cluster variance between the identically provisioned clusters (mean throughput 44.1 vs 71.6 rps), so a one-tool-per-cluster split would confound cluster with tool. Amended allocation: each cluster runs BOTH tools in counterbalanced order (bench-a: Chaos Mesh reps 1-15 then LitmusChaos reps 16-30; bench-b: LitmusChaos reps 1-15 then Chaos Mesh reps 16-30). Each tool still accrues n = 30 per scenario, 15 per cluster; the tool contrast is estimable within cluster and the confirmatory analysis is unchanged. Cluster is recorded per run and a per-cluster stratified view is reported as a robustness check.
+  2. **Application resource envelope raised.** The DeathStarBench chart's default global resources (100m CPU / 128Mi memory, requests = limits, all 27 services) OOMKill stateful pods under the study load and CPU-throttle every service, producing pilot baseline error rates of 0-29% across runs. All Component 1/2/3 data collection uses the override in `helm/dsb-values.yaml` (requests 100m/256Mi; limits 1000m/512Mi; the CPU limit was raised from an interim 500m after per-run telemetry showed the single-threaded redis pods pinned at the 500m cap, whose CPU throttling alone produced seconds-scale p99 tails). Protocol acceptance pilot under the final envelope: two fully reset+warmed repetitions at 120 rps agreed within 0.1% on throughput (119.58 vs 119.68 rps) with p99 89 vs 95 ms and zero errors. Overhead-stage pilot data collected under the starved spec is archived under `overhead-tainted-128Mi/` and excluded from analysis; Component 2 is re-collected in full under the amended spec.
+  3. **Per-repetition state reset added to the protocol (2026-08-15, before any Component 1 data).** Re-collected overhead pilot data under the amended resource envelope revealed monotonic cross-repetition degradation: with no cleanup between runs, accumulated writes (~24k posts per 300 s window; 88,662 documents after one stage) progressively slowed the application from 160 rps / 1.5% errors (fresh) to 11 rps / 74% errors (rep 10). Repetitions are only exchangeable from identical initial state, so every Component 1/2/3 repetition is now preceded by a full application-state reset (stateful pods recreated, social graph re-initialized, timeline read verified; `scripts/reset-app-state.sh`, ~215 s). Overhead data collected without resets is archived alongside the 128Mi-tainted data and excluded. This phenomenon is itself reported in the paper as a repetition-validity finding for chaos benchmarks.
+  4. **Offered load reduced to 120 rps and a 120 s excluded warm-up added (2026-08-15, before any Component 1 data).** Pilot runs (with the latency parser corrected to read wrk2's minute-suffixed values, which the original study's tooling silently recorded as 0) showed the original 200 rps offered load saturates the SUT: fresh-state capacity is ~160-180 rps, so corrected p99 latencies reached the minute scale even on clean baselines and latency measured queueing collapse rather than fault impact. The campaign offers 120 rps (~2/3 of measured fresh-state capacity), and each repetition begins with a 120 s warm-up window under load that is excluded from all measurements (post-reset cold caches and pools otherwise dominate the tail). Both values are fixed for every run of every component (`CHAOS_LOAD_RPS`, `CHAOS_WARMUP_S`).
+- Protocol per run: state reset, then 120 s excluded warm-up, then baseline 300 s under wrk2 load at 120 rps, fault 120 s, recovery 60 s, cooldown 60 s.
+
+### Component 2: Overhead decomposition
+
+- Three configurations x 10 repetitions per tool cluster: (a) no chaos tool installed, load only; (b) tool installed and idle, load only; (c) tool + fault (drawn from Component 1 data).
+- Purpose: separate standing agent overhead (b minus a) from fault side effects (c minus b). Descriptive analysis with bootstrap CIs; no hypothesis test is registered for this component.
+
+### Component 3: Fault-selection strategy study (RQ3)
+
+- Design: 5 arms (random, coverage heuristic, and three LLM agents backed by distinct Bedrock models) x **10 campaigns** per arm; each campaign selects and executes K = 10 injections from a fixed 36-candidate fault space on the dedicated third cluster. The LLM agents select from pre-registered experiments via the LitmusChaos MCP server tool set (select-and-launch granularity; the MCP server exposes no experiment-composition tool, and the paper claims selection, not authoring).
+- Random strategy is seeded (seeds 1-10, recorded). LLM arms: model IDs, prompt template, temperature, and tool configuration are frozen in the repo before campaign runs begin.
+
+### Component 4: LLM hypothesis generation study (new RQ, taxonomy-gap phase)
+
+- Design: for each of the 36 fault-space candidates, each of the three LLMs (same frozen models as Component 3), given only system topology and steady-state baseline telemetry (no fault data), predicts before injection: (i) direction of throughput impact (degrade / no meaningful change), (ii) which services' p99 latency degrades beyond 3x baseline, (iii) whether the weakness-signal set will be non-empty. 5 sampled generations per model per candidate (fixed seeds/temperature).
+- Ground truth: Component 1 benchmark medians and weakness signals. Baselines: a practitioner-heuristic prediction (rules written and frozen before data collection) and chance.
+- Primary metric: balanced accuracy of prediction (i) against ground truth, per model, with 95% bootstrap CIs. Secondary: precision/recall of the service-set prediction (ii), calibration of (iii). Comparisons across models and against baselines are descriptive with CIs; no significance test is registered (36 candidates give limited power and candidates are not independent).
+- No cluster time is consumed; this component runs after Component 1 data exists and is scored mechanically.
+
+### Component 5: ML impact detection study (analysis-phase evaluation)
+
+- Design: anomaly detectors trained per run on baseline-window telemetry and evaluated on the full run timeseries; task = flag the fault window. Labels = recorded injection start/end timestamps. Detectors (frozen list): EWMA control chart, Isolation Forest, reconstruction autoencoder, Deep SVDD. Baseline comparator: the static SLO threshold rules defined in Component 3's weakness signals.
+- Data: the per-run raw Prometheus timeseries sidecars from all Component 1 runs (720 runs). Train/evaluate split is per-run (train on that run's baseline, score the whole run); no cross-run learning, so there is no leakage channel from test faults into training.
+- **Primary metric: AUC-ROC** over window-level scores, reported per detector with 95% bootstrap CIs across runs. F1 is reported only as a secondary, threshold-dependent metric and never compared across differently-prevalent subsets. Confirmatory comparison: each ML detector vs the static-threshold baseline on AUC-ROC, Wilcoxon signed-rank paired per run across the 720 runs, Holm correction across the 4 detectors.
+- Compute: detector training/scoring on a dedicated EC2 instance (no cluster interaction, post-collection).
+
+## Metrics
+
+- **Primary metric (Component 1): mean throughput (rps) during the fault window.** All confirmatory conclusions about tool differences rest on this metric alone.
+- Secondary metrics (Component 1, reported with correction, labelled secondary): p99 latency during fault, error rate during fault, recovery time, pod restart count.
+- **Primary metric (Component 3): discovery-curve AUC**, where the discovery curve is the cumulative count of unique weakness classes found after each of the 10 injections. Weakness classes are defined mechanically before any campaign runs: error rate > 5%, p99 > 3x scenario baseline median, recovery time > 60 s, pod restarts > 0; a weakness class instance is the (signal, target service) pair.
+- Secondary metrics (Component 3): total unique weaknesses at K = 10, injections to first weakness.
+
+## Confirmatory analyses
+
+1. Component 1, per scenario: two-sided Mann-Whitney U comparing tools, n = 30 per arm.
+2. Multiplicity: Holm-Bonferroni within each metric family (12 scenario-level tests per metric). The primary-metric family is the confirmatory family; secondary-metric families are reported as supporting evidence.
+3. Effect sizes: Cliff's delta per scenario with 95% BCa bootstrap confidence intervals (10,000 resamples). Interpretation thresholds: |d| < 0.147 negligible, < 0.33 small, < 0.474 medium, otherwise large. No effect is described as meaningful in the text unless its CI excludes 0 after Holm-Bonferroni on the corresponding test.
+4. Descriptives: medians and IQRs, not means, for all skewed metrics; percentage differences reported only alongside their CI.
+5. Component 3: Kruskal-Wallis across the three strategies on discovery-curve AUC (10 campaigns per arm); if p < 0.05, pairwise two-sided Mann-Whitney U with Holm correction. Cliff's delta with BCa CIs for pairwise effects.
+
+## Power
+
+- Component 1: at Holm-corrected worst-case alpha 0.05/12 = 0.0042, n = 30 per arm gives approximately 0.85-0.90 power for large effects (Cliff's |d| >= 0.474, roughly Cohen's d = 0.8 equivalent) under the Mann-Whitney U. Small effects are explicitly NOT powered; absence of significance for small effects will not be claimed as evidence of equivalence.
+- Component 3: 10 campaigns per arm powers only large between-strategy differences; this is stated as a limitation.
+
+## Exclusion and rerun rules
+
+- A run is excluded and rerun only for infrastructure failure unrelated to the injected fault (node NotReady before fault start, load-generator job failing to schedule, Prometheus scrape gap > 30 s in the measurement window). Every exclusion is logged in `data/exclusions.log` with cause; the count is reported in the manuscript.
+- Fault-induced application failure is DATA, never an exclusion.
+- No interim analysis; no data-dependent stopping. Rep counts are fixed at 30/10/10 as above.
+
+## What is exploratory
+
+Anything not listed under Confirmatory analyses (per-category aggregations, cross-metric patterns, qualitative recovery-behavior observations) is reported as exploratory and labelled as such in the manuscript.

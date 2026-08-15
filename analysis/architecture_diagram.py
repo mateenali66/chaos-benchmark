@@ -41,7 +41,7 @@ with Diagram(
 ):
     orchestrator = Python("run-experiment.py\n(Orchestrator)")
 
-    with Cluster("AWS EKS Cluster (us-east-1)\n3x SPOT m5.xlarge"):
+    with Cluster("AWS EKS Cluster (ca-central-1)\n3x ON_DEMAND m5.xlarge"):
 
         with Cluster("social-network namespace\n(DeathStarBench)"):
             nginx = SVC("nginx-thrift\n(API Gateway)")

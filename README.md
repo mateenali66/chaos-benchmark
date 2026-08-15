@@ -12,7 +12,7 @@ This repository contains the infrastructure code, experiment definitions, orches
 
 ## Key Results
 
-120 experiments (12 fault scenarios x 2 tools x 5 repetitions) were executed on a 3-node SPOT EKS cluster. Summary findings:
+The original run (120 experiments: 12 fault scenarios x 2 tools x 5 repetitions) was executed on a single 3-node SPOT EKS cluster with a mixed instance pool. A peer reviewer flagged that mixed pool (m5.xlarge/m5a.xlarge/m4.xlarge) as an uncontrolled confound, so the rerun uses a single instance type on ON_DEMAND capacity, run concurrently across three identical clusters (see Infrastructure below). Summary findings from the original run:
 
 | Metric | Chaos Mesh | LitmusChaos | Difference |
 |--------|------------|-------------|------------|
@@ -25,7 +25,10 @@ This repository contains the infrastructure code, experiment definitions, orches
 
 ### Infrastructure
 
-- **Cluster**: AWS EKS 1.31, `us-east-1`, 3x SPOT instances (m5.xlarge / m5a.xlarge / m4.xlarge)
+- **Cluster**: AWS EKS 1.31, `ca-central-1`, 3x **ON_DEMAND** `m5.xlarge` (single instance type -- controls for the instance-class/SPOT-interruption confound flagged in review of the original `us-east-1` mixed-SPOT run)
+- **Three identical clusters run concurrently**: `is-chaos-bench-a`, `is-chaos-bench-b` (the paired Chaos Mesh vs. LitmusChaos comparison, doubled for throughput/replication), and `is-chaos-ml` (reserved for the ML/LLM fault-selection rework track). Each is a separate Terraform workspace (`terraform/envs/{bench-a,bench-b,ml}.tfvars`) with a non-overlapping `/16` VPC CIDR (`10.10.0.0/16`, `10.20.0.0/16`, `10.30.0.0/16`) in the same account/region. All resource names are prefixed `is-chaos-` and tagged `Project=paper4-chaos-benchmark`, `ManagedBy=terraform`.
+- **Shared artifacts bucket**: a single `is-chaos-artifacts-<account_id>` S3 bucket, owned by the `bench-a` workspace, with `scripts/export-to-s3.sh` writing under a `<cluster-name>/data/<timestamp>/` key prefix per cluster so all three can share it safely.
+- **Watchdogs**: `scripts/watchdogs/infra-watchdog.py` (node readiness, stuck-Pending pods, kube-system OOMKills/evictions, PVC binding failures) and `scripts/watchdogs/experiment-watchdog.py` (campaign stall detection, FAILED runs, dead runner process) poll every 60s per cluster and write JSONL status + an `.ALERT` sentinel file under `data/watchdogs/<env>/`. Launch both for a cluster with `./scripts/watchdogs/watch-all.sh <bench-a|bench-b|ml>`.
 - **Application**: DeathStarBench Social Network (27 microservices, 962 users in social graph)
 - **Monitoring**: Prometheus (kube-prometheus-stack) + Grafana + Jaeger
 
@@ -97,7 +100,12 @@ chaos-benchmark/
 ├── terraform/                   # EKS cluster infrastructure (VPC, EKS, addons)
 │   ├── main.tf
 │   ├── variables.tf
+│   ├── envs/                    # Per-cluster tfvars (bench-a.tfvars, bench-b.tfvars, ml.tfvars)
 │   └── modules/{vpc,eks,eks-addons}/
+├── scripts/watchdogs/           # Long-running monitors for the campaign
+│   ├── infra-watchdog.py        # Node/pod/PVC health per cluster
+│   ├── experiment-watchdog.py   # Campaign stall / failure / runner-liveness
+│   └── watch-all.sh             # Launches both, nohup, per cluster
 └── DeathStarBench/              # Git submodule
 ```
 
@@ -115,17 +123,20 @@ chaos-benchmark/
 
 ### 1. Provision infrastructure
 
-```bash
-# Create terraform.tfvars with your values:
-# region, cluster_name, s3_bucket_name, cluster_admin_arns
+Each of the three clusters (`bench-a`, `bench-b`, `ml`) is its own Terraform workspace with its own tfvars file under `terraform/envs/`. Fill in `cluster_admin_arns` in each file before applying.
 
+```bash
 cd terraform
 terraform init
-terraform apply
 
-# Bootstrap the cluster (Helm charts, kubeconfig, namespaces)
+# Repeat for bench-a, bench-b, ml (bench-a should be applied first: it owns
+# the shared S3 artifacts bucket the other two write into)
+terraform workspace new bench-a   # or: terraform workspace select bench-a
+terraform apply -var-file=envs/bench-a.tfvars
+
+# Bootstrap a cluster (Helm charts, kubeconfig, namespaces) -- takes the same env name
 cd ..
-./scripts/setup.sh
+./scripts/setup.sh bench-a
 ```
 
 ### 2. Deploy the application and chaos tools
@@ -166,19 +177,24 @@ python3 tables.py     # Generate LaTeX tables
 ### 6. Tear down
 
 ```bash
-./scripts/teardown.sh
+./scripts/teardown.sh bench-a
+terraform -chdir=terraform destroy -var-file=envs/bench-a.tfvars
+
+# Repeat per cluster; tear down bench-a LAST since it owns the shared
+# is-chaos-artifacts bucket that bench-b and ml write into.
 ```
 
 ### Estimated Cost
 
-Running the full experiment set takes approximately 22 hours of cluster time.
+Running the full experiment set takes approximately 22 hours of cluster time, per cluster. The rerun runs three identical clusters concurrently, and ON_DEMAND capacity costs more than SPOT (traded off deliberately, to remove the SPOT-interruption confound the original run had).
 
-| Resource | Cost |
+| Resource | Cost (per cluster/day) |
 |----------|------|
 | EKS control plane | ~$2.40/day |
-| 3x SPOT m5.xlarge | ~$2.50/day |
+| 3x ON_DEMAND m5.xlarge | ~$8.30/day |
 | EBS volumes | ~$0.30/day |
-| **Total** | **~$5.20/day** |
+| **Subtotal per cluster** | **~$11.00/day** |
+| **Total across 3 concurrent clusters** | **~$33.00/day** |
 
 ## Data Format
 

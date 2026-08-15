@@ -4,15 +4,43 @@
 # Registers 962 users, follows, and optionally composes posts via socfb-Reed98
 # Requires: kubectl, python3, aiohttp
 # Usage: ./scripts/init-social-graph.sh
+#
+# Slot parallelism: CHAOS_SLOT env var (default "0") selects which of the
+# cluster's up-to-3 isolated namespaces to initialize. Unset/"0" is the
+# original behavior, byte-for-byte. See scripts/SLOT_PARALLELISM.md.
 ################################################################################
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DSB_SOCIAL="${PROJECT_ROOT}/DeathStarBench/socialNetwork"
+CHAOS_SLOT="${CHAOS_SLOT:-0}"
 
-LOCAL_PORT=8080
-NAMESPACE="social-network"
+# Per-cluster local port: two clusters' resets overlap constantly under the
+# per-rep reset protocol, and a fixed port makes their init port-forwards
+# collide (bench-a baseline rep 6 failure). Derive a stable offset from the
+# active kubeconfig so each cluster gets its own port with no env plumbing.
+PORT_OFFSET=$(( $(printf '%s' "${KUBECONFIG:-default}" | cksum | cut -d' ' -f1) % 500 ))
+# Slot-specific offset stacked on top of PORT_OFFSET (kept in sync with
+# chaoslib.slot_port_offset() / chaoslib.SLOT_PORT_STEP and
+# reset-app-state.sh, same 97-per-slot step), so 3 slots sharing one
+# KUBECONFIG never collide on this port-forward either. Slot 0/unset adds 0
+# (unchanged behavior).
+SLOT_PORT_OFFSET=0
+if [[ -n "${CHAOS_SLOT}" && "${CHAOS_SLOT}" != "0" ]]; then
+    SLOT_PORT_OFFSET=$(( CHAOS_SLOT * 97 ))
+fi
+LOCAL_PORT=$(( 28080 + PORT_OFFSET + SLOT_PORT_OFFSET ))
+
+# Namespace convention for slot parallelism (slot 0/unset = default
+# namespace; slot N = "social-network-N"). Kept in sync with
+# chaoslib.namespace_for_slot() and reset-app-state.sh -- if you change
+# this logic, change it in all three places.
+if [[ -z "${CHAOS_SLOT}" || "${CHAOS_SLOT}" == "0" ]]; then
+    NAMESPACE="social-network"
+else
+    NAMESPACE="social-network-${CHAOS_SLOT}"
+fi
 SERVICE="svc/nginx-thrift"
 PF_PID=""
 

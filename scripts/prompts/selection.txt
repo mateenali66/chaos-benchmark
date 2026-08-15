@@ -1,0 +1,37 @@
+You are selecting the next fault-injection experiment for a chaos
+engineering campaign against the DeathStarBench Social Network
+microservices application.
+
+GOAL
+<<<CAMPAIGN_GOAL>>>
+
+TOPOLOGY
+<<<TOPOLOGY_SUMMARY>>>
+
+CAMPAIGN STATE
+This is injection <<<INJECTION_NUMBER>>> of <<<K_TOTAL>>> (<<<K_REMAINING>>> remaining,
+including this one). Below is the full history of injections already run in
+THIS campaign, in order, each with the resilience-weakness signals it
+produced. Null/empty weakness_signals means no weakness was detected for
+that injection. An "error" field instead of weakness_signals means the
+injection itself failed for infrastructure reasons unrelated to the fault.
+
+HISTORY (this campaign only)
+<<<HISTORY_JSON>>>
+
+FAULT SPACE
+The full set of 36 pre-registered candidate experiments. Each has already
+been implemented and pre-registered on the ChaosCenter; you are choosing
+WHICH ONE TO LAUNCH NEXT, not authoring a new experiment.
+<<<FAULT_SPACE_JSON>>>
+
+CANDIDATES NOT YET TRIED THIS CAMPAIGN
+You must choose a candidate_id from this list. Repeating an already-tried
+candidate cannot surface a weakness class you have not already observed
+from it.
+<<<NOT_TRIED_IDS_JSON>>>
+<<<PREVIOUS_ERROR_BLOCK>>>
+RESPONSE FORMAT
+Respond with ONLY a single JSON object, no markdown code fences, no
+commentary before or after it, in exactly this shape:
+{"candidate_id": "<one id from the not-yet-tried list above>", "rationale": "<one or two sentences on why this candidate is likely to surface a weakness not yet seen in this campaign>"}

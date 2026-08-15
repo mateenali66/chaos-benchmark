@@ -1,0 +1,250 @@
+################################################################################
+# Campaign-Mode Candidate Fault Space (Paper 4, ML fault-selection study)
+#
+# Consumed by scripts/run-campaign.py. NOT used by --mode benchmark or
+# --mode overhead (those still read the original 12 scenarios from
+# experiments/scenarios.yaml + experiments/{chaos-mesh,litmus}/*.yaml).
+#
+# 36 candidates = the same 12 fault templates already benchmarked in
+# scenarios.yaml (3 pod, 5 network -> collapsed to 4 distinct
+# latency/loss/partition templates here since 50/100/300ms count as three
+# separate templates, 2 resource, 2 application) x 3 target services each,
+# assigned by continuous round-robin over the 10 available DeathStarBench
+# social-network services so exposure is roughly even (first 6 services get
+# 4 appearances across the 36 candidates, the rest get 3). See
+# scripts/CAMPAIGN_MODES.md for the round-robin derivation and the
+# rationale for reusing services the original 12 scenarios already target
+# (8 of the 10 services were already used at least once; only
+# url-shorten-service and unique-id-service are genuinely new).
+#
+# scenario_template values are manifest-template keys, matching the
+# CHAOS_MESH / LITMUS renderers in scripts/run-campaign.py.
+#
+# CAUTION -- placeholder ports: http-abort-503 and grpc-unavailable "port"
+# params below are inherited from the original a1 (nginx-thrift:8080) and a2
+# (user-service:9090) scenarios. The other 8 services' actual listen ports
+# are NOT verified here; check manifests/ or DeathStarBench's docker-compose
+# before running an application-category candidate against a service other
+# than nginx-thrift/user-service, or the HTTPChaos rule may simply miss.
+################################################################################
+
+metadata:
+  total_candidates: 36
+  fault_window_s: 120
+  categories: [pod, network, resource, application]
+  services:
+    - compose-post-service
+    - user-service
+    - social-graph-service
+    - post-storage-service
+    - home-timeline-service
+    - user-timeline-service
+    - media-service
+    - url-shorten-service
+    - unique-id-service
+    - nginx-thrift
+
+candidates:
+  # --- pod-kill (3) ---
+  - id: C01
+    scenario_template: pod-kill
+    category: pod
+    target_service: compose-post-service
+    param: {}
+  - id: C02
+    scenario_template: pod-kill
+    category: pod
+    target_service: user-service
+    param: {}
+  - id: C03
+    scenario_template: pod-kill
+    category: pod
+    target_service: social-graph-service
+    param: {}
+
+  # --- container-kill (3) ---
+  - id: C04
+    scenario_template: container-kill
+    category: pod
+    target_service: post-storage-service
+    param: {container: post-storage-service}
+  - id: C05
+    scenario_template: container-kill
+    category: pod
+    target_service: home-timeline-service
+    param: {container: home-timeline-service}
+  - id: C06
+    scenario_template: container-kill
+    category: pod
+    target_service: user-timeline-service
+    param: {container: user-timeline-service}
+
+  # --- pod-failure (3) ---
+  - id: C07
+    scenario_template: pod-failure
+    category: pod
+    target_service: media-service
+    param: {}
+  - id: C08
+    scenario_template: pod-failure
+    category: pod
+    target_service: url-shorten-service
+    param: {}
+  - id: C09
+    scenario_template: pod-failure
+    category: pod
+    target_service: unique-id-service
+    param: {}
+
+  # --- latency-50ms (3) ---
+  - id: C10
+    scenario_template: latency-50ms
+    category: network
+    target_service: nginx-thrift
+    param: {latency_ms: 50, jitter_ms: 10, correlation: 50}
+  - id: C11
+    scenario_template: latency-50ms
+    category: network
+    target_service: compose-post-service
+    param: {latency_ms: 50, jitter_ms: 10, correlation: 50}
+  - id: C12
+    scenario_template: latency-50ms
+    category: network
+    target_service: user-service
+    param: {latency_ms: 50, jitter_ms: 10, correlation: 50}
+
+  # --- latency-100ms (3) ---
+  - id: C13
+    scenario_template: latency-100ms
+    category: network
+    target_service: social-graph-service
+    param: {latency_ms: 100, jitter_ms: 20, correlation: 50}
+  - id: C14
+    scenario_template: latency-100ms
+    category: network
+    target_service: post-storage-service
+    param: {latency_ms: 100, jitter_ms: 20, correlation: 50}
+  - id: C15
+    scenario_template: latency-100ms
+    category: network
+    target_service: home-timeline-service
+    param: {latency_ms: 100, jitter_ms: 20, correlation: 50}
+
+  # --- latency-300ms (3) ---
+  - id: C16
+    scenario_template: latency-300ms
+    category: network
+    target_service: user-timeline-service
+    param: {latency_ms: 300, jitter_ms: 50, correlation: 50}
+  - id: C17
+    scenario_template: latency-300ms
+    category: network
+    target_service: media-service
+    param: {latency_ms: 300, jitter_ms: 50, correlation: 50}
+  - id: C18
+    scenario_template: latency-300ms
+    category: network
+    target_service: url-shorten-service
+    param: {latency_ms: 300, jitter_ms: 50, correlation: 50}
+
+  # --- packet-loss-5pct (3) ---
+  - id: C19
+    scenario_template: packet-loss-5pct
+    category: network
+    target_service: unique-id-service
+    param: {loss_pct: 5, correlation: 25}
+  - id: C20
+    scenario_template: packet-loss-5pct
+    category: network
+    target_service: nginx-thrift
+    param: {loss_pct: 5, correlation: 25}
+  - id: C21
+    scenario_template: packet-loss-5pct
+    category: network
+    target_service: compose-post-service
+    param: {loss_pct: 5, correlation: 25}
+
+  # --- network-partition (3) ---
+  - id: C22
+    scenario_template: network-partition
+    category: network
+    target_service: user-service
+    param: {direction: both}
+  - id: C23
+    scenario_template: network-partition
+    category: network
+    target_service: social-graph-service
+    param: {direction: both}
+  - id: C24
+    scenario_template: network-partition
+    category: network
+    target_service: post-storage-service
+    param: {direction: both}
+
+  # --- cpu-stress-80pct (3) ---
+  - id: C25
+    scenario_template: cpu-stress-80pct
+    category: resource
+    target_service: home-timeline-service
+    param: {workers: 2, load_pct: 80}
+  - id: C26
+    scenario_template: cpu-stress-80pct
+    category: resource
+    target_service: user-timeline-service
+    param: {workers: 2, load_pct: 80}
+  - id: C27
+    scenario_template: cpu-stress-80pct
+    category: resource
+    target_service: media-service
+    param: {workers: 2, load_pct: 80}
+
+  # --- memory-pressure-80pct (3) ---
+  - id: C28
+    scenario_template: memory-pressure-80pct
+    category: resource
+    target_service: url-shorten-service
+    param: {workers: 1, size_mb: 256}
+  - id: C29
+    scenario_template: memory-pressure-80pct
+    category: resource
+    target_service: unique-id-service
+    param: {workers: 1, size_mb: 256}
+  - id: C30
+    scenario_template: memory-pressure-80pct
+    category: resource
+    target_service: nginx-thrift
+    param: {workers: 1, size_mb: 256}
+
+  # --- http-abort-503 (3) ---
+  - id: C31
+    scenario_template: http-abort-503
+    category: application
+    target_service: compose-post-service
+    param: {status_code: 503, port: 8080}
+  - id: C32
+    scenario_template: http-abort-503
+    category: application
+    target_service: user-service
+    param: {status_code: 503, port: 8080}
+  - id: C33
+    scenario_template: http-abort-503
+    category: application
+    target_service: social-graph-service
+    param: {status_code: 503, port: 8080}
+
+  # --- grpc-unavailable (3) ---
+  - id: C34
+    scenario_template: grpc-unavailable
+    category: application
+    target_service: post-storage-service
+    param: {grpc_status: 14, port: 9090}
+  - id: C35
+    scenario_template: grpc-unavailable
+    category: application
+    target_service: home-timeline-service
+    param: {grpc_status: 14, port: 9090}
+  - id: C36
+    scenario_template: grpc-unavailable
+    category: application
+    target_service: user-timeline-service
+    param: {grpc_status: 14, port: 9090}
