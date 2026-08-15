@@ -17,7 +17,7 @@ data/progress.log
 # Revision-campaign experiment output (data-v2/): same rationale as data/
 # above -- large per-run JSON + gzipped timeseries sidecars, not source.
 # Code/config under data-v2 is never expected; this excludes the whole tree.
-data-v2/
+data-v2/*
 !data-v2/README.md
 
 # One-off pilot/validation runs (see data-v2/README.md for why these must
