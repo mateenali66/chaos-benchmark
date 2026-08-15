@@ -50,20 +50,31 @@ except AttributeError:
 #   benchmark (run-all-experiments.sh):  "  PASS: tool / scenario / run N"
 #                                        "[current/total] RUN|SKIP"
 #   overhead/campaign (run-overhead.sh): "[idle 3/10] PASS" / "[baseline 1/10] RUN  label"
+#
+# Slot parallelism (run-all-experiments.sh --slot N, N!=0) prepends a literal
+# "[slot N] " to EVERY benchmark-grammar line it emits (PASS, FAIL, the
+# [current/total] marker, and Batch Complete) -- confirmed against
+# run-all-experiments.sh's LOG_PREFIX usage, applied to all of its emitted
+# lines. The original anchors here (^\s*) cannot skip over that literal
+# prefix text, so every regex below tolerates an optional leading
+# "[slot N] " before the benchmark-grammar branch. run-overhead.sh has no
+# slot support and never emits this prefix, so the overhead-grammar branch
+# is left as-is.
+_SLOT_PREFIX = r"(?:\[slot \d+\]\s*)?"
 PASS_RE = re.compile(
-    r"^\s*PASS:\s*(\S+)\s*/\s*(\S+)\s*/\s*run\s*(\d+)"
+    rf"^{_SLOT_PREFIX}\s*PASS:\s*(\S+)\s*/\s*(\S+)\s*/\s*run\s*(\d+)"
     r"|^\[(baseline|idle|fault|injection)\s+(\d+)/(\d+)\]\s+PASS\b",
     re.MULTILINE)
 FAIL_RE = re.compile(
-    r"^\s*FAIL:\s*(\S+)\s*/\s*(\S+)\s*/\s*run\s*(\d+)"
+    rf"^{_SLOT_PREFIX}\s*FAIL:\s*(\S+)\s*/\s*(\S+)\s*/\s*run\s*(\d+)"
     r"|^\[(baseline|idle|fault|injection)\s+(\d+)/(\d+)\]\s+FAIL\b",
     re.MULTILINE)
 PROGRESS_MARKER_RE = re.compile(
-    r"^\[(\d+)/(\d+)\]\s+(RUN|SKIP)\b"
+    rf"^{_SLOT_PREFIX}\[(\d+)/(\d+)\]\s+(RUN|SKIP)\b"
     r"|^\[(?:baseline|idle|fault|injection)\s+(\d+)/(\d+)\]\s+(RUN|SKIP)\b",
     re.MULTILINE)
 BATCH_COMPLETE_RE = re.compile(
-    r"^\s*Batch Complete\s*$"
+    rf"^{_SLOT_PREFIX}\s*Batch Complete\s*$"
     r"|^\s*Overhead batch .* complete", re.MULTILINE)
 
 
