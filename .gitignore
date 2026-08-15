@@ -18,6 +18,11 @@ data/progress.log
 # above -- large per-run JSON + gzipped timeseries sidecars, not source.
 # Code/config under data-v2 is never expected; this excludes the whole tree.
 data-v2/
+!data-v2/README.md
+
+# One-off pilot/validation runs (see data-v2/README.md for why these must
+# never live under data-v2/) -- also experiment output, not source.
+pilots/
 
 # Credentials and secrets
 *.pem
