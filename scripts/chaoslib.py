@@ -152,7 +152,16 @@ INFRA_QUERIES = {
     "cpu_usage": 'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
     "memory_usage": 'sum(container_memory_working_set_bytes{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
     "pod_restarts": 'sum(kube_pod_container_status_restarts_total{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
-    "network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
+    # No container!=""/!="POD" filter here: container_network_*_total is a
+    # cAdvisor POD-LEVEL metric (network namespaces are shared per-pod, not
+    # per-container) and carries no "container" label at all, so that filter
+    # (correct for the per-container cpu/memory/restarts queries below)
+    # excludes every series and silently zeroed this metric in every sidecar
+    # since the filter was added. Confirmed live: 0 series with the filter,
+    # 28 without, on a real run. [2m] window for the same scrape-alignment
+    # reason as node_cpu_utilization below (confirmed live: [30s]=14 series,
+    # [2m]=28 series).
+    "network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
 }
 
 # Full-run-window queries for the per-run timeseries sidecar (ML analysis
@@ -164,8 +173,11 @@ INFRA_QUERIES = {
 TIMESERIES_QUERIES = {
     "container_cpu_usage": 'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
     "container_memory_working_set": 'sum(container_memory_working_set_bytes{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
-    "container_network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
-    "container_network_tx_bytes": 'sum(rate(container_network_transmit_bytes_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
+    # See INFRA_QUERIES["network_rx_bytes"] above for why no container filter
+    # and a [2m] window: confirmed live, the container!=""/!="POD" filter
+    # excludes 100% of series for this pod-level metric.
+    "container_network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
+    "container_network_tx_bytes": 'sum(rate(container_network_transmit_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
     "pod_restarts_total": 'sum(kube_pod_container_status_restarts_total{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
     # node-exporter scrapes every 30s, so a [30s] rate window rarely holds the
     # two samples rate() needs and returns empty; [2m] is required here.

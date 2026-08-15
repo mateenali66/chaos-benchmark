@@ -182,6 +182,16 @@ echo "${LOG_PREFIX}=============================================================
 echo "${LOG_PREFIX}  Chaos Benchmark - Batch Experiment Runner" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}  Tools: ${TOOLS[*]} | Scenarios: ${#SCENARIOS[@]} | Reps: ${START_REP}-${REPS}" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}  Total experiments this invocation: ${TOTAL}" | tee -a "${PROGRESS_LOG}"
+# Explicit, logged acknowledgment of the resolved value: an accidentally
+# leaked/copy-pasted CHAOS_RESET_STATE=0 must be visible in progress.log,
+# not just inferable from the absence of "[reset]" lines (see
+# analysis/PREREGISTRATION.md amendment 3 for why silent no-reset is a
+# validity-breaking failure mode, not a minor one).
+if [[ "${CHAOS_RESET_STATE:-1}" != "1" ]]; then
+    echo "${LOG_PREFIX}  WARNING: CHAOS_RESET_STATE=${CHAOS_RESET_STATE} -- per-rep state reset is DISABLED for this invocation" | tee -a "${PROGRESS_LOG}"
+else
+    echo "${LOG_PREFIX}  CHAOS_RESET_STATE=1 (default): per-rep state reset ENABLED" | tee -a "${PROGRESS_LOG}"
+fi
 echo "${LOG_PREFIX}  Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}================================================================================" | tee -a "${PROGRESS_LOG}"
 
