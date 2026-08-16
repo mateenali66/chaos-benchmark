@@ -6,8 +6,13 @@ No fault data of any kind is available to you.
 TOPOLOGY
 <<<TOPOLOGY_SUMMARY>>>
 
-STEADY-STATE BASELINE (medians per service, no fault active)
+STEADY-STATE BASELINE (no fault active)
 <<<BASELINE_SUMMARY_JSON>>>
+Instrumentation note: this testbed measures end-to-end latency only through
+a single load-generator entry point, so no per-service latency breakdown
+exists. The per-service signal above is mean CPU utilization (cores) at
+steady state -- use it, not an assumed per-service latency figure, as your
+basis for predicting which services will be under load during the fault.
 
 CANDIDATE FAULT (not yet injected)
 <<<CANDIDATE_JSON>>>
@@ -16,13 +21,15 @@ TASK
 Predict, before this fault is run:
 1. throughput_direction: will aggregate request throughput during the fault
    window "degrade" relative to baseline, or show "no_meaningful_change"?
-2. degraded_services: which service(s), if any, will have p99 latency
-   exceed 3x their steady-state baseline during the fault window. Return an
-   empty list if you predict none will.
+2. degraded_services: which service(s), if any, will have CPU utilization
+   exceed 3x their steady-state baseline during the fault window (the
+   measurable proxy for "under load" in this testbed -- see the
+   instrumentation note above). Return an empty list if you predict none
+   will.
 3. weakness_signal_present: will AT LEAST ONE resilience-weakness signal
-   fire during this injection? A signal fires if: error rate > 5%, ANY
-   service's p99 latency > 3x baseline, the system has not visibly settled
-   60s into recovery, or any pod restarts occur.
+   fire during this injection? A signal fires if: error rate > 5%,
+   aggregate p99 latency > 3x the baseline p99 above, the system has not
+   visibly settled 60s into recovery, or any pod restarts occur.
 
 <<<PREVIOUS_ERROR_BLOCK>>>
 RESPONSE FORMAT
