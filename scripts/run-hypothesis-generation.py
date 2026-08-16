@@ -378,7 +378,16 @@ def run_generation(dry_run: bool, resume: bool):
         print(f"{len(candidates)} candidates x {len(arms)} arms x "
               f"{samples_per_candidate} samples -- writing to {output_root}")
 
-    services = metadata["services"]
+    # metadata["services"] is the 10 fault-space TARGET services; the model
+    # is also allowed to predict text-service (a real call-graph node with
+    # its own measured baseline CPU, described in the topology doc but
+    # excluded from metadata["services"] since no candidate targets it
+    # directly) -- matching hypothesis-schema.json's degraded_services enum.
+    # Found live: Llama consistently and correctly traced url-shorten <-
+    # text-service <- compose-post through the real call graph and got
+    # rejected 15/180 times for naming a real, topologically-correct
+    # service that the validator's original 10-service scope excluded.
+    services = metadata["services"] + ["text-service"]
     total_generated, total_skipped = 0, 0
 
     for candidate in candidates:
