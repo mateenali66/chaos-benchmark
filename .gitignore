@@ -29,6 +29,7 @@ pilots/
 *.key
 *.env
 gremlin-credentials.yaml
+litmus-credentials.json
 
 # OS
 .DS_Store
