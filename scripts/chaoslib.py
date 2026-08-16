@@ -703,12 +703,25 @@ WARMUP_DURATION = int(os.environ.get("CHAOS_WARMUP_S", "120"))
 
 
 def run_warmup(label: str, run_number: int,
-               namespace: str = namespace_for_slot(CHAOS_SLOT)) -> None:
+               namespace: str = namespace_for_slot(CHAOS_SLOT)) -> float | None:
     """Drive wrk2 load for WARMUP_DURATION seconds and discard the results.
-    Not a recorded phase: nothing is parsed or persisted. No-op when
-    CHAOS_WARMUP_S=0."""
+    Not a recorded phase: nothing is parsed or persisted. No-op (returns
+    None) when CHAOS_WARMUP_S=0.
+
+    Returns the wall-clock time this function returns (i.e. warmup traffic
+    fully stopped and its Job is cleaned up). Callers use this as the
+    sidecar's pre-window start instead of a hardcoded "-60s before
+    baseline_start" -- that fixed offset assumed >=60s would elapse between
+    warmup ending and baseline_start, but the actual gap is ~15-20s (a few
+    kubectl round-trips + a short settle sleep), so -60s reached back into
+    the tail of the warmup job's own traffic for every run collected before
+    this fix (audit finding, Aug 15; confirmed via real run timestamps: the
+    60s window consistently overlapped ~40s of live warmup load). Threading
+    the true end-of-warmup timestamp through eliminates the overlap
+    structurally instead of guessing a safe buffer.
+    """
     if WARMUP_DURATION <= 0:
-        return
+        return None
     warm_label = f"warmup-{label}"
     job_name = wrk2_job_name(warm_label, run_number)
     print(f"\n  [Phase] WARMUP ({WARMUP_DURATION}s) - excluded from measurement...")
@@ -721,6 +734,7 @@ def run_warmup(label: str, run_number: int,
         time.sleep(5)
     finally:
         cleanup_wrk2_job(job_name, namespace)
+    return time.time()
 
 
 def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: bool,
@@ -735,7 +749,7 @@ def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: 
     don't pass it explicitly automatically get slot-aware behavior from the
     CHAOS_SLOT env var (unset/"0" -> unchanged default-namespace behavior).
     """
-    run_warmup(label, run_number, namespace)
+    warmup_end = run_warmup(label, run_number, namespace)
 
     job_name = wrk2_job_name(label, run_number)
     wrk2_yaml = render_wrk2_job(label, run_number, duration_s, namespace=namespace)
@@ -766,7 +780,10 @@ def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: 
         result["wrk2"]["raw_output"] = wrk2_logs[-5000:] if len(wrk2_logs) > 5000 else wrk2_logs
 
         result["_window"] = {
-            "start": load_start - 60,
+            # Use the real warmup-end timestamp when warmup ran (eliminates
+            # the overlap; see run_warmup's docstring), else fall back to
+            # the original -60s heuristic when warmup is disabled.
+            "start": warmup_end if warmup_end is not None else load_start - 60,
             "end": load_end,
             "fault_start": None,
             "fault_end": None,
@@ -833,7 +850,7 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
     CHAOS_SLOT env var (unset/"0" -> unchanged default-namespace behavior).
     Explicit namespace= callers are unaffected by CHAOS_SLOT.
     """
-    run_warmup(label, run_number, namespace)
+    warmup_end = run_warmup(label, run_number, namespace)
 
     job_name = wrk2_job_name(label, run_number)
     total_load_duration = baseline_s + fault_s + recovery_s
@@ -929,7 +946,8 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
         results["derived"] = compute_derived_metrics(results["phases"])
 
         results["_window"] = {
-            "start": baseline_start - 60,
+            # See run_flat_load's identical fix + run_warmup's docstring.
+            "start": warmup_end if warmup_end is not None else baseline_start - 60,
             "end": window_end,
             "fault_start": fault_start,
             "fault_end": fault_end,
