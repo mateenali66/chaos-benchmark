@@ -675,66 +675,81 @@ spec:
 """
 
 
-def render_litmus_manifest(candidate: FaultCandidate, campaign: int, run_number: int) -> str:
-    name = f"campaign-{candidate.id.lower()}-c{campaign}-r{run_number}"
+def litmus_fault_params(candidate: FaultCandidate) -> tuple[str, dict]:
+    """Map a fault-space candidate to (litmus experiment/fault name, env dict).
+
+    Single source of truth for the scenario_template -> real Litmus fault
+    mapping, shared by the local manifest path (render_litmus_manifest,
+    used by random/coverage strategies and chaos-mesh-style local execution)
+    and the ChaosCenter API path (litmus_chaoscenter_client, used by the
+    llm strategy's litmus arm -- see scripts/litmus_chaoscenter_client.py).
+    Keeping one mapping means a scenario's parameters can never drift
+    between the two execution paths.
+    """
     svc = candidate.target_service
     p = candidate.param
     t = candidate.scenario_template
     dur = str(chaoslib.CAMPAIGN_FAULT_DURATION)
 
     if t in ("pod-kill", "pod-failure"):
-        return _litmus_engine(name, svc, "pod-delete", {
+        return "pod-delete", {
             "TOTAL_CHAOS_DURATION": dur, "CHAOS_INTERVAL": "10",
             "FORCE": "true", "PODS_AFFECTED_PERC": "100",
-        })
+        }
     if t == "container-kill":
         container = p.get("container", svc)
-        return _litmus_engine(name, svc, "container-kill", {
+        return "container-kill", {
             "TARGET_CONTAINER": container, "TOTAL_CHAOS_DURATION": dur,
             "CHAOS_INTERVAL": "10", "SOCKET_PATH": "/run/containerd/containerd.sock",
             "CONTAINER_RUNTIME": "containerd",
-        })
+        }
     if t in ("latency-50ms", "latency-100ms", "latency-300ms"):
-        return _litmus_engine(name, svc, "pod-network-latency", {
+        return "pod-network-latency", {
             "TOTAL_CHAOS_DURATION": dur, "NETWORK_LATENCY": str(p["latency_ms"]),
             "JITTER": str(p["jitter_ms"]), "CONTAINER_RUNTIME": "containerd",
             "SOCKET_PATH": "/run/containerd/containerd.sock",
-        })
+        }
     if t == "packet-loss-5pct":
-        return _litmus_engine(name, svc, "pod-network-loss", {
+        return "pod-network-loss", {
             "TOTAL_CHAOS_DURATION": dur,
             "NETWORK_PACKET_LOSS_PERCENTAGE": str(p.get("loss_pct", 5)),
             "CONTAINER_RUNTIME": "containerd", "SOCKET_PATH": "/run/containerd/containerd.sock",
-        })
+        }
     if t == "network-partition":
-        return _litmus_engine(name, svc, "pod-network-partition", {
+        return "pod-network-partition", {
             "TOTAL_CHAOS_DURATION": dur, "CONTAINER_RUNTIME": "containerd",
             "SOCKET_PATH": "/run/containerd/containerd.sock",
-        })
+        }
     if t == "cpu-stress-80pct":
-        return _litmus_engine(name, svc, "pod-cpu-hog-exec", {
+        return "pod-cpu-hog-exec", {
             "TOTAL_CHAOS_DURATION": dur, "CPU_CORES": str(p.get("workers", 2)),
             "CPU_LOAD": str(p.get("load_pct", 80)), "PODS_AFFECTED_PERC": "100",
-        })
+        }
     if t == "memory-pressure-80pct":
-        return _litmus_engine(name, svc, "pod-memory-hog-exec", {
+        return "pod-memory-hog-exec", {
             "TOTAL_CHAOS_DURATION": dur, "MEMORY_CONSUMPTION": str(p.get("size_mb", 256)),
             "PODS_AFFECTED_PERC": "100",
-        })
+        }
     if t == "http-abort-503":
-        return _litmus_engine(name, svc, "pod-http-status-code", {
+        return "pod-http-status-code", {
             "TOTAL_CHAOS_DURATION": dur, "STATUS_CODE": str(p.get("status_code", 503)),
             "MODIFY_RESPONSE_BODY": "true", "RESPONSE_BODY": "service unavailable",
             "TARGET_SERVICE_PORT": str(p.get("port", 8080)), "TOXICS_PERIOD": dur,
             "CONTAINER_RUNTIME": "containerd", "SOCKET_PATH": "/run/containerd/containerd.sock",
-        })
+        }
     if t == "grpc-unavailable":
-        return _litmus_engine(name, svc, "pod-http-status-code", {
+        return "pod-http-status-code", {
             "TOTAL_CHAOS_DURATION": dur, "STATUS_CODE": "503",
             "TARGET_SERVICE_PORT": str(p.get("port", 9090)),
             "CONTAINER_RUNTIME": "containerd", "SOCKET_PATH": "/run/containerd/containerd.sock",
-        })
+        }
     raise ValueError(f"Unknown scenario_template '{t}' for litmus")
+
+
+def render_litmus_manifest(candidate: FaultCandidate, campaign: int, run_number: int) -> str:
+    name = f"campaign-{candidate.id.lower()}-c{campaign}-r{run_number}"
+    experiment_name, env = litmus_fault_params(candidate)
+    return _litmus_engine(name, candidate.target_service, experiment_name, env)
 
 
 def render_manifest(tool: str, candidate: FaultCandidate, campaign: int, run_number: int) -> str:
