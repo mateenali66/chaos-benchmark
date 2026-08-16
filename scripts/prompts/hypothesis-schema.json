@@ -13,7 +13,7 @@
     },
     "degraded_services": {
       "type": "array",
-      "description": "Services predicted to have p99 latency exceed 3x their steady-state baseline during the fault window. Empty list if none are predicted to.",
+      "description": "Services predicted to have CPU utilization exceed 3x their steady-state baseline during the fault window (this testbed has no per-service latency instrumentation -- see hypothesis.txt's instrumentation note). Empty list if none are predicted to.",
       "items": {
         "type": "string",
         "enum": [
@@ -26,13 +26,14 @@
           "media-service",
           "url-shorten-service",
           "unique-id-service",
-          "nginx-thrift"
+          "nginx-thrift",
+          "text-service"
         ]
       }
     },
     "weakness_signal_present": {
       "type": "boolean",
-      "description": "Predicted: will at least one resilience-weakness signal (error_rate > 5%, any service p99 > 3x baseline, recovery_time > 60s, pod_restarts > 0) fire during this injection?"
+      "description": "Predicted: will at least one resilience-weakness signal (error_rate > 5%, aggregate p99 > 3x baseline p99, recovery_time > 60s, pod_restarts > 0) fire during this injection?"
     },
     "rationale": {
       "type": "string",
