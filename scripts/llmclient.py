@@ -93,6 +93,7 @@ class BedrockClient:
             kwargs["system"] = [{"text": system}]
 
         last_error: Optional[Exception] = None
+        temperature_stripped = False
         for attempt in range(1, self.retries + 1):
             try:
                 response = self._runtime.converse(**kwargs)
@@ -110,6 +111,21 @@ class BedrockClient:
             except ClientError as e:
                 last_error = e
                 code = e.response.get("Error", {}).get("Code", "")
+                msg = str(e)
+                # Some newer Bedrock model versions reject an explicit
+                # `temperature` in inferenceConfig outright ("`temperature`
+                # is deprecated for this model") rather than clamping or
+                # ignoring it -- caught live testing Component 4's real
+                # generation path (2026-08-16) against
+                # global.anthropic.claude-sonnet-5. Retry once without it
+                # rather than failing every call for models with this
+                # constraint; does not count against the retry budget meant
+                # for transient/throttling errors.
+                if (not temperature_stripped and code == "ValidationException"
+                        and "temperature" in msg and "deprecated" in msg):
+                    kwargs["inferenceConfig"].pop("temperature", None)
+                    temperature_stripped = True
+                    continue
                 if code not in RETRYABLE_ERROR_CODES or attempt == self.retries:
                     raise BedrockInvokeError(
                         f"bedrock-runtime converse failed for {self.model_id} "
