@@ -59,6 +59,15 @@ def main() -> int:
     ap.add_argument("--data-dir", required=True)
     ap.add_argument("--mode", required=True, choices=["benchmark", "overhead", "campaign"])
     ap.add_argument("--tool", choices=["chaos-mesh", "litmus"])
+    ap.add_argument("--start-rep", type=int, default=1,
+                    help="benchmark mode: first rep to expect (matches "
+                         "run-all-experiments.sh's --start-rep). Needed "
+                         "because the crossover design means a cluster's "
+                         "two tools each own a DIFFERENT rep range (phase-1 "
+                         "tool owns 1..15, phase-2 tool owns 16..30) -- "
+                         "checking one tool across the full 1..30 range "
+                         "will always report the other tool's half as "
+                         "missing.")
     ap.add_argument("--reps", type=int, default=30)
     ap.add_argument("--overhead-reps", type=int, default=10)
     ap.add_argument("--stages", default="baseline,idle,fault",
@@ -78,7 +87,7 @@ def main() -> int:
         if not args.tool:
             ap.error("--tool is required for benchmark mode")
         for scenario in SCENARIOS:
-            for rep in range(1, args.reps + 1):
+            for rep in range(args.start_rep, args.reps + 1):
                 expected += 1
                 check_run(data_dir / args.tool / scenario / f"run-{rep}.json",
                           problems, args.no_sidecar)
