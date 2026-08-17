@@ -797,11 +797,27 @@ def render_litmus_manifest(candidate: FaultCandidate, campaign: int, run_number:
 
 
 def render_manifest(tool: str, candidate: FaultCandidate, campaign: int, run_number: int) -> str:
+    """Both render_chaos_mesh_manifest and render_litmus_manifest hardcode
+    the slot-0 namespace "social-network" in their f-string templates (never
+    made slot-aware, unlike chaoslib.render_experiment_manifest for the main
+    benchmark's static fault files -- found while wiring up 3-slot
+    parallelism for the 500-injection Component 3 campaign study, 2026-08-16).
+    Rather than threading a namespace parameter through every template
+    branch, substitute post-hoc here, the same pattern
+    chaoslib.render_experiment_manifest already uses. No-op at slot 0."""
     if tool == "chaos-mesh":
-        return render_chaos_mesh_manifest(candidate, campaign, run_number)
-    if tool == "litmus":
-        return render_litmus_manifest(candidate, campaign, run_number)
-    raise ValueError(f"Unknown tool '{tool}'")
+        manifest = render_chaos_mesh_manifest(candidate, campaign, run_number)
+    elif tool == "litmus":
+        manifest = render_litmus_manifest(candidate, campaign, run_number)
+    else:
+        raise ValueError(f"Unknown tool '{tool}'")
+    namespace = chaoslib.namespace_for_slot(chaoslib.CHAOS_SLOT)
+    if namespace == "social-network":
+        return manifest
+    return (manifest
+            .replace("namespace: social-network", f"namespace: {namespace}")
+            .replace("- social-network", f"- {namespace}")
+            .replace("appns: social-network", f"appns: {namespace}"))
 
 ################################################################################
 # Weakness signals

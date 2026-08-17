@@ -30,6 +30,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 ################################################################################
 # Configuration
@@ -268,8 +269,33 @@ def kubectl_logs(job_name: str, namespace: str, timeout: int = 30) -> str:
 _port_forwards: list[subprocess.Popen] = []
 
 
-def start_port_forward(namespace: str, service: str, local_port: int, remote_port: int) -> subprocess.Popen:
-    """Start a kubectl port-forward in the background."""
+def start_port_forward(namespace: str, service: str, local_port: int, remote_port: int) -> Optional[subprocess.Popen]:
+    """Start a kubectl port-forward in the background.
+
+    Check-before-start guard (added 2026-08-16, wiring up 3-slot campaign
+    concurrency): PROMETHEUS_PORT is deliberately NOT slot-offset -- all
+    slots share one Prometheus (see slot_port_offset's docstring) -- so 3
+    concurrent slot processes on one cluster all call this with the same
+    local_port. Without this guard, the 2nd/3rd caller's kubectl process
+    fails to bind the already-held port, start_port_forward raises, and the
+    caller degrades to prom_available=False -- which does not just drop
+    supplementary telemetry: compute_weakness_signals's recovery_over_60s
+    (one of Component 3's four weakness-signal dimensions, PREREGISTRATION.md)
+    reads phases.*.infra_metrics, which is `{}` whenever prom_available is
+    False, making recovery_over_60s permanently False for that slot for the
+    rest of the campaign -- a silent, systematic bias in the primary
+    discovery-curve metric for whichever slots lose the race. If a
+    port-forward on local_port is already live and healthy, this returns
+    None without spawning a second process (and without appending to
+    _port_forwards, since this call doesn't own that process and must not
+    kill it in some other slot's cleanup_port_forwards())."""
+    if local_port == PROMETHEUS_PORT:
+        try:
+            if query_prometheus_instant("up").get("status") == "success":
+                return None
+        except Exception:
+            pass
+
     proc = subprocess.Popen(
         ["kubectl", "port-forward", f"svc/{service}", f"{local_port}:{remote_port}", "-n", namespace],
         stdout=subprocess.DEVNULL,
