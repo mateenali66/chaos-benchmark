@@ -17,6 +17,19 @@ Flags:
     campaigns assigned to it (same flat-index-%3 assignment
     run-all-campaigns.sh uses, recomputed here so this watchdog needs no
     extra bookkeeping file)
+  - any injection-*.json with a non-null "error" field (chaoslib.run_fault_protocol
+    catches per-injection exceptions and records them without stopping the
+    campaign driver -- file-count progress alone would look "healthy" even
+    if every single injection were failing, since a caught exception still
+    produces a file). Alerts on any NEW error count since the previous poll,
+    not just presence, so this only fires once per newly-failed injection.
+  - cluster resource constraints: any of the 3 is-chaos-ml nodes reporting
+    NotReady or a True DiskPressure/MemoryPressure/PIDPressure condition, or
+    any pod in social-network/social-network-1/social-network-2 stuck
+    Pending for more than 3 minutes (the actual signature of the CPU-capacity
+    deadlock hit live 2026-08-16 setting this campaign up -- nodes stayed
+    "Ready" the whole time, only pod scheduling failed, so a node-Ready-only
+    check would have missed it)
   - any campaign-summary.json reporting a violation_counts total of 0 across
     an entire arm's 10 campaigns is NOT flagged here (that's an analysis
     question, not an infra failure) -- this watchdog is infra-health only
@@ -34,9 +47,11 @@ Usage:
       --stall-minutes 20
 """
 import argparse
+import calendar
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -79,6 +94,78 @@ def pid_alive(pidfile: str) -> bool:
     return True
 
 
+def scan_injection_errors(data_dir: str) -> list[str]:
+    """Every injection-*.json with a non-null "error" field, as
+    "arm/campaign-N/injection-i" identifiers. Full rescan each poll (500
+    files max, cheap at a 60s interval) rather than tracking deltas by
+    mtime, so a watchdog restart never misses an error that landed while it
+    was down."""
+    errored = []
+    for path in glob.glob(os.path.join(data_dir, "*", "campaign-*", "injection-*.json")):
+        try:
+            with open(path) as f:
+                d = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if d.get("error"):
+            parts = path.split(os.sep)
+            errored.append("/".join(parts[-3:]))
+    return sorted(errored)
+
+
+def _run_kubectl(args: list[str], context: str, timeout: int = 20) -> dict | list | None:
+    try:
+        result = subprocess.run(
+            ["kubectl", "--context", context] + args + ["-o", "json"],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        if result.returncode != 0:
+            return None
+        return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        return None
+
+
+def check_cluster_health(context: str, namespaces: list[str],
+                          pending_grace_s: int = 180) -> dict:
+    """Resource-constraint proxy: node conditions (NotReady, *Pressure) plus
+    pods stuck Pending past `pending_grace_s`. `None` fields mean the check
+    itself could not run (kubectl unreachable/timeout), NOT that the cluster
+    is healthy -- reported as its own flag so a kubectl outage doesn't read
+    as a silent all-clear."""
+    unhealthy_nodes = []
+    nodes = _run_kubectl(["get", "nodes"], context)
+    if nodes is None:
+        return {"checked": False, "unhealthy_nodes": None, "pending_pods": None}
+    for node in nodes.get("items", []):
+        name = node["metadata"]["name"]
+        conditions = {c["type"]: c["status"] for c in node.get("status", {}).get("conditions", [])}
+        if conditions.get("Ready") != "True":
+            unhealthy_nodes.append(f"{name}: NotReady")
+            continue
+        for pressure in ("DiskPressure", "MemoryPressure", "PIDPressure"):
+            if conditions.get(pressure) == "True":
+                unhealthy_nodes.append(f"{name}: {pressure}")
+
+    now = time.time()
+    pending_pods = []
+    for ns in namespaces:
+        pods = _run_kubectl(["get", "pods", "-n", ns], context)
+        if pods is None:
+            continue
+        for pod in pods.get("items", []):
+            if pod.get("status", {}).get("phase") != "Pending":
+                continue
+            created = pod["metadata"].get("creationTimestamp")
+            if not created:
+                continue
+            created_ts = calendar.timegm(time.strptime(created, "%Y-%m-%dT%H:%M:%SZ"))
+            if now - created_ts > pending_grace_s:
+                pending_pods.append(f"{ns}/{pod['metadata']['name']}")
+
+    return {"checked": True, "unhealthy_nodes": unhealthy_nodes, "pending_pods": pending_pods}
+
+
 def scan(data_dir: str) -> dict:
     injection_files = glob.glob(os.path.join(data_dir, "*", "campaign-*", "injection-*.json"))
     latest_mtime = max((os.path.getmtime(f) for f in injection_files), default=0.0)
@@ -119,7 +206,15 @@ def main():
     parser.add_argument("--stall-minutes", type=float, default=20.0,
                          help="alert if no new injection-*.json in this many minutes (default: 20)")
     parser.add_argument("--interval", type=int, default=60, help="poll interval in seconds (default: 60)")
+    parser.add_argument("--kube-context", default="is-chaos-ml",
+                         help="kubectl context for cluster-health checks (default: is-chaos-ml)")
+    parser.add_argument("--namespaces", default="social-network,social-network-1,social-network-2",
+                         help="comma-separated namespaces to check for stuck-Pending pods")
+    parser.add_argument("--cluster-check-interval", type=int, default=300,
+                         help="seconds between cluster-health checks (default: 300; kubectl calls "
+                              "are heavier than the filesystem scan, so this runs less often than --interval)")
     args = parser.parse_args()
+    namespaces = args.namespaces.split(",")
 
     status_file = args.status_file
     alert_sentinel = status_file + ".ALERT"
@@ -134,6 +229,9 @@ def main():
 
     last_injection_count = None
     last_progress_wallclock = time.time()
+    known_errors: set[str] = set()
+    last_cluster_check = 0.0
+    last_cluster_health = {"checked": False, "unhealthy_nodes": None, "pending_pods": None}
 
     while True:
         state = scan(args.data_dir)
@@ -153,7 +251,21 @@ def main():
             if slot_num in state["incomplete_slots"] and not pid_alive(pidfile):
                 dead_slots.append(slot_num)
 
-        alert = stalled or bool(dead_slots)
+        errored_injections = set(scan_injection_errors(args.data_dir))
+        newly_errored = sorted(errored_injections - known_errors)
+        new_errors = len(newly_errored)
+        known_errors = errored_injections
+
+        if now - last_cluster_check >= args.cluster_check_interval:
+            last_cluster_health = check_cluster_health(args.kube_context, namespaces)
+            last_cluster_check = now
+        cluster_health = last_cluster_health
+
+        alert = (
+            stalled or bool(dead_slots) or new_errors > 0
+            or bool(cluster_health.get("unhealthy_nodes"))
+            or bool(cluster_health.get("pending_pods"))
+        )
 
         record = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -165,6 +277,9 @@ def main():
             "dead_slots": dead_slots,
             "stalled": stalled,
             "minutes_since_progress": round((now - last_progress_wallclock) / 60, 1),
+            "total_errored_injections": len(known_errors),
+            "new_errored_injections": newly_errored,
+            "cluster_health": cluster_health,
             "alert": alert,
         }
 
@@ -178,11 +293,19 @@ def main():
                 reasons.append(f"no new injection in {record['minutes_since_progress']}min")
             if dead_slots:
                 reasons.append(f"dead slot(s): {dead_slots}")
+            if new_errors > 0:
+                reasons.append(f"{new_errors} new injection error(s): {record['new_errored_injections']}")
+            if cluster_health.get("unhealthy_nodes"):
+                reasons.append(f"unhealthy node(s): {cluster_health['unhealthy_nodes']}")
+            if cluster_health.get("pending_pods"):
+                reasons.append(f"stuck Pending pod(s): {cluster_health['pending_pods']}")
             print(f"[campaign-watchdog] ALERT: {'; '.join(reasons)} "
                   f"({state['injection_count']}/{state['total_injections']} injections)", file=sys.stderr)
         else:
             print(f"[campaign-watchdog] OK: {state['injection_count']}/{state['total_injections']} injections, "
-                  f"{state['campaigns_done']}/{state['total_campaigns']} campaigns done")
+                  f"{state['campaigns_done']}/{state['total_campaigns']} campaigns done, "
+                  f"{len(known_errors)} total errored injections, "
+                  f"cluster_checked={cluster_health['checked']}")
 
         if state["injection_count"] >= state["total_injections"] and not state["incomplete_slots"]:
             print("[campaign-watchdog] All campaigns complete. Exiting.")
