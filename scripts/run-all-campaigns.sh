@@ -36,6 +36,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export AWS_PROFILE="${AWS_PROFILE:-is-staging-mfa}"
 export CHAOS_SLOT="${CHAOS_SLOT:-0}"
 export CHAOS_DATA_DIR="${CHAOS_DATA_DIR:-${PROJECT_ROOT}/data-v2/ml}"
+# chaoslib.ECR_REPO defaults to a stale cross-account (886604922358, the
+# "personal" AWS account) image reference -- 403 Forbidden under
+# is-staging-mfa's node IAM role (found live 2026-08-16 debugging the
+# smoke-test campaign's zero-throughput wrk2 runs). The real per-account
+# image already exists (pushed by build-wrk2-image.sh); must be selected
+# explicitly, matching chaoslib.py's own documented override convention.
+export CHAOS_ECR_REPO="${CHAOS_ECR_REPO:-759890811490.dkr.ecr.ca-central-1.amazonaws.com/chaos-benchmark/wrk2}"
 
 CAMPAIGN_K=10
 ARMS=("random" "coverage" "llm-claude" "llm-llama" "llm-mistral")
