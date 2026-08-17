@@ -24,7 +24,13 @@ region = "ca-central-1"
 vpc_cidr = "10.30.0.0/16"
 az_count = 3
 
-node_instance_types = ["m5.xlarge"]
+# m5.xlarge (4 vCPU) undersized once litmus/monitoring/gremlin/chaos-testing
+# infra pods share the node with a full 27-pod DSB deployment per slot --
+# found live 2026-08-16 when the wrk2 load-generator job (500m CPU request)
+# couldn't schedule ("0/3 nodes are available: 3 Insufficient cpu") with
+# nodes already at 97-99% CPU request from DSB+infra alone. Upsized to
+# m5.2xlarge (8 vCPU) for real headroom rather than starving wrk2's request.
+node_instance_types = ["m5.2xlarge"]
 capacity_type       = "ON_DEMAND"
 node_desired_size   = 3
 node_min_size       = 3
