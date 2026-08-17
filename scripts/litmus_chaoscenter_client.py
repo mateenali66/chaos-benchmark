@@ -175,17 +175,34 @@ class ChaosCenterClient:
         data = self._graphql(mutation, variables)
         return data["createChaosExperiment"]["experimentID"]
 
-    def list_experiments(self) -> list[dict]:
+    def list_experiments(self, page_size: int = 100) -> list[dict]:
+        """Returns every registered experiment. ChaosCenter silently caps
+        an unpaginated request({}) to a 15-item page -- verified live
+        2026-08-16: totalNoOfExperiments correctly reported 36 while the
+        experiments[] array held only 15 -- so this always passes an
+        explicit pagination block and loops if a project ever exceeds
+        page_size (this repo's real usage tops out at 36)."""
         query = """
-            query($projectID: ID!) {
-                listExperiment(projectID: $projectID, request: {}) {
+            query($projectID: ID!, $page: Int!, $limit: Int!) {
+                listExperiment(projectID: $projectID,
+                                request: {pagination: {page: $page, limit: $limit}}) {
                     totalNoOfExperiments
                     experiments { experimentID experimentType }
                 }
             }
         """
-        data = self._graphql(query, {"projectID": self.project_id})
-        return data["listExperiment"]["experiments"]
+        experiments: list[dict] = []
+        page = 0
+        while True:
+            data = self._graphql(query, {
+                "projectID": self.project_id, "page": page, "limit": page_size,
+            })
+            result = data["listExperiment"]
+            experiments.extend(result["experiments"])
+            if len(experiments) >= result["totalNoOfExperiments"] or not result["experiments"]:
+                break
+            page += 1
+        return experiments
 
     def run_chaos_experiment(self, experiment_id: str) -> str:
         """Trigger a pre-registered experiment. Returns notifyID (used to

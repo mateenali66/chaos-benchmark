@@ -62,7 +62,51 @@ LLM_CONFIG_FILE = chaoslib.EXPERIMENTS_DIR / "llm-config.yaml"
 PROMPTS_DIR = chaoslib.PROJECT_ROOT / "scripts" / "prompts"
 SELECTION_PROMPT_FILE = PROMPTS_DIR / "selection.txt"
 TOPOLOGY_FILE = PROMPTS_DIR / "topology-social-network.md"
+CHAOSCENTER_CREDENTIALS_FILE = chaoslib.PROJECT_ROOT / "litmus-credentials.json"
+CHAOSCENTER_MAPPING_FILE = chaoslib.EXPERIMENTS_DIR / "chaoscenter-experiment-ids.json"
 CAMPAIGN_K = 10
+
+
+def verify_chaoscenter_catalog(fault_space: list) -> None:
+    """Path (c), jss/ML_ARM_DESIGN.md Component 3 wiring status: fault
+    EXECUTION runs entirely on the local-manifest path below (render_manifest
+    -> chaoslib.run_fault_protocol) regardless of this check -- ChaosCenter's
+    own runChaosExperiment/Argo Workflow trigger is broken (chaos-runner
+    binary absent, see litmus_chaoscenter_client.py's module docstring) and
+    is never called here. What this DOES verify, once per campaign start
+    (not per injection, to keep API load flat), is the narrower true claim:
+    that the llm strategy's candidate menu corresponds 1:1 to experiments
+    genuinely registered and independently listable in ChaosCenter, via a
+    live listExperiment call cross-referenced against
+    experiments/chaoscenter-experiment-ids.json (built by
+    scripts/register-chaoscenter-experiments.py). Never fails the campaign --
+    a missing/unreachable catalog is a WARNING, since execution's own
+    correctness does not depend on it."""
+    if os.environ.get("CHAOS_BENCHMARK_SKIP_CHAOSCENTER_VERIFY"):
+        print("  ChaosCenter catalog verification skipped (CHAOS_BENCHMARK_SKIP_CHAOSCENTER_VERIFY set).")
+        return
+    if not CHAOSCENTER_CREDENTIALS_FILE.exists() or not CHAOSCENTER_MAPPING_FILE.exists():
+        print("  WARNING: litmus-credentials.json or chaoscenter-experiment-ids.json not found; "
+              "skipping ChaosCenter catalog verification (run "
+              "scripts/register-chaoscenter-experiments.py first).", file=sys.stderr)
+        return
+    import litmus_chaoscenter_client
+    mapping = json.loads(CHAOSCENTER_MAPPING_FILE.read_text())
+    try:
+        client = litmus_chaoscenter_client.ChaosCenterClient()
+        live_ids = {e["experimentID"] for e in client.list_experiments()}
+    except Exception as e:
+        print(f"  WARNING: ChaosCenter catalog verification call failed ({e}); continuing -- "
+              f"fault execution never depends on ChaosCenter reachability.", file=sys.stderr)
+        return
+    missing = [c.id for c in fault_space if c.id not in mapping or mapping[c.id] not in live_ids]
+    if missing:
+        print(f"  WARNING: {len(missing)} fault-space candidates are not registered in "
+              f"ChaosCenter's live catalog: {missing}. Re-run "
+              f"scripts/register-chaoscenter-experiments.py.", file=sys.stderr)
+    else:
+        print(f"  ChaosCenter catalog verified live: all {len(fault_space)} fault-space "
+              f"candidates are registered ChaosCenter experiments.")
 
 # Frozen campaign goal text for Component 3 (analysis/PREREGISTRATION.md's
 # discovery-curve-AUC primary metric and its weakness-class definition).
@@ -875,6 +919,8 @@ def run_campaign(tool: str, strategy_name: str, campaign_number: int, seed: Opti
             # rather than depending on the number of prior calls.
             fallback_seed=seed if seed is not None else campaign_number,
         )
+        if tool == "litmus":
+            verify_chaoscenter_catalog(fault_space)
 
     # Reconstruct history from any injections already run (resume support).
     history: list[RunResult] = []
