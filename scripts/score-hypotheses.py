@@ -1,29 +1,44 @@
 #!/usr/bin/env python3
 """
-Component 4 mechanical scoring (analysis/PREREGISTRATION.md, Amendment 6).
+Component 4 mechanical scoring (analysis/PREREGISTRATION.md, amendment items
+6-7).
 
 Scores each of the 540 real Component 4 hypothesis-generation samples
 (data-v2/ml/hypotheses/{arm}/candidate-{id}/sample-{n}.json) against real
-ground truth, per Amendment 6's pooling rule: for each of the 36 fault-space
-candidates, ground truth is pooled from every REAL fault-window execution of
-that exact (scenario_template, target_service) pair -- Component 1's 720
-runs (data-v2/{bench-a,bench-b}/{chaos-mesh,litmus}/{scenario}/run-N.json)
-where the scenario's (action, target) matches, AND Component 3's campaign
-injections (data-v2/ml/campaigns/*/campaign-*/injection-N.json) matched
-directly by candidate_id. A candidate with zero real executions is EXCLUDED
-from scoring, never imputed (Amendment 6).
+ground truth. Per amendment item 7 (2026-08-18, superseding item 6's original
+pooling rule after a demonstrated confound was found -- see PREREGISTRATION.md
+for the full account, including candidate C14's classification flipping
+between sources), ground truth for each of the 36 fault-space candidates
+comes from Component 3's 500 campaign injections ONLY
+(data-v2/ml/campaigns/*/campaign-*/injection-N.json), matched by
+candidate_id. Component 1's 720 runs are no longer pooled in: their protocol
+window (540s, fault = 22% of window) differs from Component 3's (300s, fault
+= 40%), and pooling let Component 1's much larger n drown out Component 3's
+real, protocol-matched signal for the 3 candidates where both sources exist.
+`component1_runs_for()` is retained only for a potential future
+robustness-check appendix, not used for the primary ground truth. A
+candidate with zero real executions is EXCLUDED from scoring, never imputed
+(item 6); Component 3 alone covers 36/36, so no candidate is currently
+excluded.
 
-Primary metric (PREREGISTRATION.md line 33): balanced accuracy of
-throughput_direction (prediction i) per model, with 95% bootstrap CIs
-(10,000 resamples, matching Component 1's convention). Baselines:
-practitioner_heuristic (scripts/practitioner_heuristic.py, frozen rules) and
-chance (0.5 by construction for balanced accuracy on a binary task).
+Primary metric (PREREGISTRATION.md): balanced accuracy of throughput_direction
+(prediction i) per model, with 95% percentile bootstrap CIs (10,000
+resamples, fixed seed 42 -- item 7c; this is registered explicitly for
+Component 4 and is NOT the same method as Component 1's BCa CIs). Baselines:
+practitioner_heuristic (scripts/practitioner_heuristic.py, frozen rules),
+chance (0.5 by construction for balanced accuracy on a binary task), and a
+trivial always-predict-the-majority-ground-truth-class baseline (item 7e).
+Each arm's raw predicted-label distribution is also reported so a
+constant/degenerate predictor -- which mechanically produces exactly 0.5
+balanced accuracy with zero bootstrap CI width, indistinguishable from
+genuine chance performance in the summary numbers alone -- is visible
+without inspecting raw JSON.
 
 Secondary (exploratory, no CI/significance claims made): precision/recall of
-degraded_services (ii) against the pooled ground-truth CPU-spike set, and
-calibration of weakness_signal_present (iii) against pooled any_violation.
+degraded_services (ii) against the ground-truth CPU-spike set, and
+calibration of weakness_signal_present (iii) against any_violation.
 
-Ground-truth throughput_direction rule (Amendment 6c): degrade if
+Ground-truth throughput_direction rule (item 6c): degrade if
 (119.7 - median_run_throughput_rps) / 119.7 > 0.10, else no_meaningful_change.
 119.7 rps is Component 2's real steady-state baseline
 (experiments/component4-baseline-summary.json).
@@ -36,7 +51,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import yaml
@@ -164,14 +179,18 @@ def median(values: list[float]) -> float | None:
 
 
 def ground_truth_for_candidate(candidate: dict, scenarios: dict) -> dict | None:
-    run_files = component1_runs_for(candidate["scenario_template"], candidate["target_service"], scenarios)
+    """Amendment item 7 (2026-08-18): Component 3 injections only. Component
+    1 pooling was dropped after it was found to drown out Component 3's real
+    signal for overlapping candidates (see module docstring / PREREGISTRATION.md
+    item 7b) -- `scenarios` is accepted for signature stability / a future
+    robustness-check appendix but is not used in the primary ground truth."""
+    del scenarios
     injection_files = component3_injections_for(candidate["id"])
-    sources = run_files + injection_files
-    if not sources:
+    if not injection_files:
         return None
 
     throughputs, violations = [], []
-    for path in sources:
+    for path in injection_files:
         t, v = real_throughput_and_violation(path)
         if t is not None:
             throughputs.append(t)
@@ -186,7 +205,6 @@ def ground_truth_for_candidate(candidate: dict, scenarios: dict) -> dict | None:
     weakness_present = (sum(violations) >= len(violations) / 2) if violations else None
 
     return {
-        "n_component1_runs": len(run_files),
         "n_component3_injections": len(injection_files),
         "median_throughput_rps": med_throughput,
         "throughput_direction": "degrade" if degrade else "no_meaningful_change",
@@ -268,10 +286,14 @@ def main():
     samples = load_hypotheses()
     print(f"Loaded {len(samples)} valid hypothesis-generation samples")
 
-    heuristic_by_id = {c["id"]: c for c in fault_space}
+    # Amendment item 7e: majority ground-truth class, for the trivial
+    # always-predict-majority baseline below.
+    gt_counts = Counter(gt["throughput_direction"] for gt in ground_truth.values())
+    majority_class = gt_counts.most_common(1)[0][0] if gt_counts else None
 
     results = {}
-    arms = sorted({s["arm"] for s in samples}) + ["practitioner_heuristic"]
+    arms = (sorted({s["arm"] for s in samples})
+            + ["practitioner_heuristic", "always_predict_majority_class"])
     for arm in arms:
         pairs = []
         if arm == "practitioner_heuristic":
@@ -281,6 +303,9 @@ def main():
                     continue
                 pred = practitioner_heuristic.predict(candidate)
                 pairs.append((pred["throughput_direction"], ground_truth[cid]["throughput_direction"]))
+        elif arm == "always_predict_majority_class":
+            for cid, gt in ground_truth.items():
+                pairs.append((majority_class, gt["throughput_direction"]))
         else:
             for s in samples:
                 if s["arm"] != arm or s["candidate_id"] not in ground_truth:
@@ -290,13 +315,19 @@ def main():
 
         ba = balanced_accuracy(pairs)
         ci_lo, ci_hi = bootstrap_ci(pairs) if pairs else (None, None)
+        pred_counts = Counter(p for p, _ in pairs)
+        degenerate = len(pred_counts) < 2
         results[arm] = {
             "n_scored": len(pairs),
             "balanced_accuracy": ba,
             "ci_95_lo": ci_lo,
             "ci_95_hi": ci_hi,
+            "predicted_label_counts": dict(pred_counts),
+            "degenerate_constant_predictor": degenerate,
         }
-        print(f"  {arm}: n={len(pairs)} balanced_accuracy={ba} 95% CI=[{ci_lo}, {ci_hi}]")
+        flag = "  [CONSTANT PREDICTOR -- not genuine chance-level performance]" if degenerate else ""
+        print(f"  {arm}: n={len(pairs)} balanced_accuracy={ba} 95% CI=[{ci_lo}, {ci_hi}] "
+              f"predictions={dict(pred_counts)}{flag}")
 
     results["chance"] = {"n_scored": None, "balanced_accuracy": 0.5, "ci_95_lo": None, "ci_95_hi": None}
 

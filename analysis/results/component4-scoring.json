@@ -1,65 +1,60 @@
 {
-  "candidates_with_ground_truth": 3,
-  "candidates_excluded": [
-    "C02",
-    "C03",
-    "C04",
-    "C05",
-    "C06",
-    "C07",
-    "C08",
-    "C09",
-    "C10",
-    "C11",
-    "C12",
-    "C13",
-    "C15",
-    "C17",
-    "C18",
-    "C19",
-    "C20",
-    "C21",
-    "C22",
-    "C23",
-    "C24",
-    "C25",
-    "C26",
-    "C27",
-    "C28",
-    "C29",
-    "C30",
-    "C31",
-    "C32",
-    "C33",
-    "C34",
-    "C35",
-    "C36"
-  ],
+  "candidates_with_ground_truth": 36,
+  "candidates_excluded": [],
   "total_candidates": 36,
   "results": {
     "llm-claude": {
-      "n_scored": 15,
-      "balanced_accuracy": null,
-      "ci_95_lo": null,
-      "ci_95_hi": null
+      "n_scored": 180,
+      "balanced_accuracy": 0.46875,
+      "ci_95_lo": 0.40584415584415584,
+      "ci_95_hi": 0.53045013239188,
+      "predicted_label_counts": {
+        "degrade": 139,
+        "no_meaningful_change": 41
+      },
+      "degenerate_constant_predictor": false
     },
     "llm-llama": {
-      "n_scored": 15,
-      "balanced_accuracy": null,
-      "ci_95_lo": null,
-      "ci_95_hi": null
+      "n_scored": 180,
+      "balanced_accuracy": 0.5,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.5,
+      "predicted_label_counts": {
+        "degrade": 180
+      },
+      "degenerate_constant_predictor": true
     },
     "llm-mistral": {
-      "n_scored": 15,
-      "balanced_accuracy": null,
-      "ci_95_lo": null,
-      "ci_95_hi": null
+      "n_scored": 180,
+      "balanced_accuracy": 0.51875,
+      "ci_95_lo": 0.4792207792207792,
+      "ci_95_hi": 0.5582379293180687,
+      "predicted_label_counts": {
+        "degrade": 165,
+        "no_meaningful_change": 15
+      },
+      "degenerate_constant_predictor": false
     },
     "practitioner_heuristic": {
-      "n_scored": 3,
-      "balanced_accuracy": null,
-      "ci_95_lo": null,
-      "ci_95_hi": null
+      "n_scored": 36,
+      "balanced_accuracy": 0.575,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.6666666666666666,
+      "predicted_label_counts": {
+        "degrade": 33,
+        "no_meaningful_change": 3
+      },
+      "degenerate_constant_predictor": false
+    },
+    "always_predict_majority_class": {
+      "n_scored": 36,
+      "balanced_accuracy": 0.5,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.5,
+      "predicted_label_counts": {
+        "no_meaningful_change": 36
+      },
+      "degenerate_constant_predictor": true
     },
     "chance": {
       "n_scored": null,
@@ -70,25 +65,220 @@
   },
   "ground_truth": {
     "C01": {
-      "n_component1_runs": 60,
-      "n_component3_injections": 0,
-      "median_throughput_rps": 119.8,
+      "n_component3_injections": 38,
+      "median_throughput_rps": 119.58,
       "throughput_direction": "no_meaningful_change",
-      "weakness_signal_present": false
+      "weakness_signal_present": true
+    },
+    "C02": {
+      "n_component3_injections": 26,
+      "median_throughput_rps": 119.67500000000001,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C03": {
+      "n_component3_injections": 22,
+      "median_throughput_rps": 119.61,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C04": {
+      "n_component3_injections": 23,
+      "median_throughput_rps": 102.12,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C05": {
+      "n_component3_injections": 13,
+      "median_throughput_rps": 100.36,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C06": {
+      "n_component3_injections": 7,
+      "median_throughput_rps": 89.76,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C07": {
+      "n_component3_injections": 13,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C08": {
+      "n_component3_injections": 3,
+      "median_throughput_rps": 24.96,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C09": {
+      "n_component3_injections": 3,
+      "median_throughput_rps": 24.6,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C10": {
+      "n_component3_injections": 30,
+      "median_throughput_rps": 119.63,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C11": {
+      "n_component3_injections": 29,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C12": {
+      "n_component3_injections": 14,
+      "median_throughput_rps": 119.67500000000001,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C13": {
+      "n_component3_injections": 15,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
     },
     "C14": {
-      "n_component1_runs": 60,
-      "n_component3_injections": 0,
-      "median_throughput_rps": 119.8,
-      "throughput_direction": "no_meaningful_change",
-      "weakness_signal_present": false
+      "n_component3_injections": 4,
+      "median_throughput_rps": 24.69,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C15": {
+      "n_component3_injections": 4,
+      "median_throughput_rps": 66.83,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
     },
     "C16": {
-      "n_component1_runs": 60,
-      "n_component3_injections": 0,
-      "median_throughput_rps": 119.8,
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.68,
       "throughput_direction": "no_meaningful_change",
-      "weakness_signal_present": false
+      "weakness_signal_present": true
+    },
+    "C17": {
+      "n_component3_injections": 1,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C18": {
+      "n_component3_injections": 4,
+      "median_throughput_rps": 119.58500000000001,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C19": {
+      "n_component3_injections": 2,
+      "median_throughput_rps": 71.93,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C20": {
+      "n_component3_injections": 3,
+      "median_throughput_rps": 25.25,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C21": {
+      "n_component3_injections": 3,
+      "median_throughput_rps": 13.78,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C22": {
+      "n_component3_injections": 25,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C23": {
+      "n_component3_injections": 18,
+      "median_throughput_rps": 25.125,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C24": {
+      "n_component3_injections": 7,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C25": {
+      "n_component3_injections": 28,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C26": {
+      "n_component3_injections": 21,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C27": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 24.65,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C28": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C29": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.57,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C30": {
+      "n_component3_injections": 4,
+      "median_throughput_rps": 72.285,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C31": {
+      "n_component3_injections": 27,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C32": {
+      "n_component3_injections": 17,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C33": {
+      "n_component3_injections": 24,
+      "median_throughput_rps": 119.63,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C34": {
+      "n_component3_injections": 23,
+      "median_throughput_rps": 63.45,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C35": {
+      "n_component3_injections": 15,
+      "median_throughput_rps": 20.99,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C36": {
+      "n_component3_injections": 14,
+      "median_throughput_rps": 21.815,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
     }
   }
 }
