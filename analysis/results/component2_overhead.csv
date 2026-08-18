@@ -1,0 +1,3 @@
+cluster,tool,metric,n_baseline,n_idle,n_fault,baseline_median,baseline_ci_lo,baseline_ci_hi,idle_median,idle_ci_lo,idle_ci_hi,fault_median,fault_ci_lo,fault_ci_hi,standing_overhead_idle_minus_baseline,standing_overhead_ci_lo,standing_overhead_ci_hi,fault_side_effect_fault_minus_idle,fault_side_effect_ci_lo,fault_side_effect_ci_hi
+bench-a,chaos-mesh,CPU,10,10,10,0.0163,0.0157,0.0165,0.0166,0.0163,0.0171,0.0259,0.0255,0.0272,0.0003,-0.0001,0.0011,0.0093,0.0087,0.0106
+bench-a,chaos-mesh,Memory (MB),10,10,10,20.2399,19.8999,20.3761,20.1312,20.0003,20.2621,22.54,22.2746,22.672,-0.1087,-0.2904,0.2408,2.4088,2.1171,2.5841
