@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 """
-Generate LaTeX tables for Paper 4.
+Generate LaTeX tables for Paper 4 from analysis/analyze.py's CSV output.
 
-Outputs LaTeX table fragments to analysis/tables/ for direct inclusion.
-Also outputs CSV versions for review.
+Reads analysis/results/*.csv only -- does NOT independently reload raw
+run JSON or recompute any statistic, so table content cannot drift out of
+sync with what analyze.py (the single source of statistical truth) actually
+computed. Run analysis/analyze.py first.
 
 Tables:
-    Table 2: Tool feature comparison
-    Table 3: Fault injection scenarios and parameters
-    Table 4: Per-scenario results (throughput, latency, error rate)
-    Table 5: Statistical test results
-    Table 6: Overhead comparison
+    Table 2: Tool feature comparison (static)
+    Table 3: Fault injection scenarios and parameters (static)
+    Table 4: Per-scenario results (median [IQR], n=30 repetitions)
+    Table 5: Confirmatory statistical tests (Mann-Whitney U, Holm-Bonferroni,
+             Cliff's delta with BCa/percentile-fallback 95% CI)
+    Table 6: Resource overhead during fault injection
 """
 
-import json
-import glob
 import csv
-import math
-from collections import defaultdict
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+RESULTS_DIR = Path(__file__).parent / "results"
 TABLE_DIR = Path(__file__).parent / "tables"
 TABLE_DIR.mkdir(exist_ok=True)
 
@@ -37,49 +36,22 @@ CATEGORIES = {
     "n1": "Network", "n2": "Network", "n3": "Network", "n4": "Network", "n5": "Network",
     "r1": "Resource", "r2": "Resource", "a1": "Application", "a2": "Application",
 }
-TOOL_LABELS = {"chaos-mesh": "Chaos Mesh", "litmus": "LitmusChaos"}
 
 
-def mean(xs): return sum(xs) / len(xs) if xs else 0.0
-def stdev(xs):
-    if len(xs) < 2: return 0.0
-    m = mean(xs)
-    return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
-def ci95(xs):
-    if len(xs) < 2: return 0.0
-    return 2.776 * stdev(xs) / math.sqrt(len(xs))
+def _read_csv(name: str) -> list[dict]:
+    path = RESULTS_DIR / name
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found -- run analysis/analyze.py first")
+    with open(path) as f:
+        return list(csv.DictReader(f))
 
 
-def load_data():
-    records = []
-    for fpath in sorted(glob.glob(str(DATA_DIR / "*" / "*" / "run-*.json"))):
-        with open(fpath) as f:
-            d = json.load(f)
-        m = d["metadata"]
-        w = d["wrk2"]
-        dr = d.get("derived", {})
-        records.append({
-            "tool": m["tool"], "scenario": m["scenario"], "run": m["run"],
-            "throughput_rps": w["throughput_rps"],
-            "latency_p50": w["latency_ms"]["p50"],
-            "latency_p99": w["latency_ms"]["p99"],
-            "latency_mean": w["latency_ms"]["mean"],
-            "errors_timeout": w["errors"]["timeout"],
-            "errors_http": w["errors"]["http_non2xx3xx"],
-            "errors_read": w["errors"]["read"],
-            "errors_write": w["errors"]["write"],
-            "requests_total": w["requests_total"],
-            "error_rate": (w["errors"]["timeout"] + w["errors"]["http_non2xx3xx"] +
-                           w["errors"]["read"] + w["errors"]["write"]) / max(w["requests_total"], 1),
-            "pod_restarts": dr.get("pod_restarts_during_fault", 0),
-            "cpu_spike_pct": dr.get("cpu_spike_pct", 0),
-            "memory_spike_mb": dr.get("memory_spike_mb", 0),
-        })
-    return records
+def _index(rows: list[dict], *keys: str) -> dict:
+    return {tuple(r[k] for k in keys): r for r in rows}
 
 
 # ---------------------------------------------------------------------------
-# Table 2: Tool Feature Comparison (static)
+# Table 2: Tool Feature Comparison (static -- no experimental data involved)
 # ---------------------------------------------------------------------------
 def table2_tool_comparison():
     latex = r"""\begin{table}[ht]
@@ -144,17 +116,16 @@ A2 & Application & gRPC Error & UNAVAILABLE & user-service \\
 
 
 # ---------------------------------------------------------------------------
-# Table 4: Per-Scenario Results
+# Table 4: Per-Scenario Results (median [IQR], n=30)
 # ---------------------------------------------------------------------------
-def table4_results(records):
-    groups = defaultdict(list)
-    for r in records:
-        groups[(r["tool"], r["scenario"])].append(r)
+def table4_results():
+    summary = _index(_read_csv("summary_stats.csv"), "tool", "scenario")
+    n = next(iter(summary.values()))["n"] if summary else "?"
 
     lines = [
         r"\begin{table*}[ht]",
         r"\centering",
-        r"\caption{Per-scenario benchmark results (mean $\pm$ 95\% CI, $n=5$ repetitions)}",
+        rf"\caption{{Per-scenario benchmark results (median [IQR], $n={n}$ repetitions)}}",
         r"\label{tab:results}",
         r"\small",
         r"\begin{tabular}{cl" + "rr" * 3 + "}",
@@ -172,56 +143,33 @@ def table4_results(records):
                 lines.append(r"\hline")
             prev_cat = cat
 
-        cm = groups.get(("chaos-mesh", sc), [])
-        lt = groups.get(("litmus", sc), [])
+        cm = summary.get(("Chaos Mesh", sc))
+        lt = summary.get(("LitmusChaos", sc))
+        if not cm or not lt:
+            continue
 
-        cm_rps = [r["throughput_rps"] for r in cm]
-        lt_rps = [r["throughput_rps"] for r in lt]
-        cm_p99 = [r["latency_p99"] for r in cm]
-        lt_p99 = [r["latency_p99"] for r in lt]
-        cm_err = [r["error_rate"] for r in cm]
-        lt_err = [r["error_rate"] for r in lt]
-
-        def fmt_ci(vals, dec=1):
-            m = mean(vals)
-            c = ci95(vals)
-            if dec == 1:
-                return f"${m:.1f} \\pm {c:.1f}$"
-            return f"${m:.2f} \\pm {c:.2f}$"
+        def fmt(row, key, dec=1):
+            med = float(row[f"{key}_median"])
+            if f"{key}_q1" in row and f"{key}_q3" in row:
+                q1, q3 = float(row[f"{key}_q1"]), float(row[f"{key}_q3"])
+                return f"${med:.{dec}f}$ [{q1:.{dec}f}, {q3:.{dec}f}]"
+            return f"${med:.{dec}f}$"
 
         lines.append(
             f"{sc.upper()} & {SCENARIO_NAMES[sc]} & "
-            f"{fmt_ci(cm_rps)} & {fmt_ci(lt_rps)} & "
-            f"{fmt_ci(cm_p99)} & {fmt_ci(lt_p99)} & "
-            f"{fmt_ci(cm_err, 2)} & {fmt_ci(lt_err, 2)} \\\\"
+            f"{fmt(cm, 'rps')} & {fmt(lt, 'rps')} & "
+            f"{fmt(cm, 'p99')} & {fmt(lt, 'p99')} & "
+            f"{fmt(cm, 'error_rate', 3)} & {fmt(lt, 'error_rate', 3)} \\\\"
         )
-
-    # Overall row
-    all_cm = [r for r in records if r["tool"] == "chaos-mesh"]
-    all_lt = [r for r in records if r["tool"] == "litmus"]
-    cm_rps_all = [r["throughput_rps"] for r in all_cm]
-    lt_rps_all = [r["throughput_rps"] for r in all_lt]
-    cm_p99_all = [r["latency_p99"] for r in all_cm]
-    lt_p99_all = [r["latency_p99"] for r in all_lt]
-    cm_err_all = [r["error_rate"] for r in all_cm]
-    lt_err_all = [r["error_rate"] for r in all_lt]
-
-    lines.append(r"\hline")
-    lines.append(
-        f"& \\textbf{{Overall}} & "
-        f"$\\mathbf{{{mean(cm_rps_all):.1f} \\pm {ci95(cm_rps_all):.1f}}}$ & "
-        f"$\\mathbf{{{mean(lt_rps_all):.1f} \\pm {ci95(lt_rps_all):.1f}}}$ & "
-        f"$\\mathbf{{{mean(cm_p99_all):.1f} \\pm {ci95(cm_p99_all):.1f}}}$ & "
-        f"$\\mathbf{{{mean(lt_p99_all):.1f} \\pm {ci95(lt_p99_all):.1f}}}$ & "
-        f"$\\mathbf{{{mean(cm_err_all):.2f} \\pm {ci95(cm_err_all):.2f}}}$ & "
-        f"$\\mathbf{{{mean(lt_err_all):.2f} \\pm {ci95(lt_err_all):.2f}}}$ \\\\"
-    )
 
     lines += [
         r"\hline",
         r"\end{tabular}",
         r"\vspace{2mm}",
-        r"\raggedright\footnotesize CM = Chaos Mesh, LT = LitmusChaos. Values shown as mean $\pm$ 95\% CI ($t$-distribution, $df=4$).",
+        r"\raggedright\footnotesize CM = Chaos Mesh, LT = LitmusChaos. Values shown as median [Q1, Q3] across "
+        rf"$n={n}$ repetitions per (tool, scenario) cell (crossover-allocated across two clusters, "
+        r"amendment item 1). Throughput and p99 latency are aggregated over the whole "
+        r"baseline+fault+recovery protocol window, not fault-phase-isolated (see PREREGISTRATION.md).",
         r"\end{table*}",
     ]
 
@@ -231,60 +179,51 @@ def table4_results(records):
 
 
 # ---------------------------------------------------------------------------
-# Table 5: Statistical Test Results
+# Table 5: Confirmatory Statistical Tests (primary metric family only)
 # ---------------------------------------------------------------------------
-def table5_statistical_tests(records):
-    """Wilcoxon + Cliff's delta for throughput per scenario."""
-    from analyze import wilcoxon_signed_rank, cliffs_delta, bonferroni
-
-    groups = defaultdict(list)
-    for r in records:
-        groups[(r["tool"], r["scenario"])].append(r)
+def table5_statistical_tests():
+    tests = _read_csv("statistical_tests.csv")
+    primary = {r["scenario"]: r for r in tests
+               if r["metric"] == "Throughput (rps)"}
 
     lines = [
         r"\begin{table}[ht]",
         r"\centering",
-        r"\caption{Statistical comparison of throughput: Chaos Mesh vs LitmusChaos}",
+        r"\caption{Confirmatory statistical comparison of throughput: Chaos Mesh vs LitmusChaos}",
         r"\label{tab:stats}",
         r"\small",
         r"\begin{tabular}{clrrrrrl}",
         r"\hline",
-        r"\textbf{ID} & \textbf{Scenario} & \textbf{CM} & \textbf{LT} & \textbf{$\Delta$\%} & \textbf{$W$} & \textbf{$p$} & \textbf{Cliff's $d$} \\",
+        r"\textbf{ID} & \textbf{Scenario} & \textbf{CM} & \textbf{LT} & \textbf{$\Delta$\%} & \textbf{$U$} & \textbf{$p_{\mathrm{Holm}}$} & \textbf{Cliff's $d$} \\",
         r"\hline",
     ]
 
-    p_values = []
-    row_data = []
-
     for sc in SCENARIO_ORDER:
-        cm = sorted(groups.get(("chaos-mesh", sc), []), key=lambda r: r["run"])
-        lt = sorted(groups.get(("litmus", sc), []), key=lambda r: r["run"])
-        cm_rps = [r["throughput_rps"] for r in cm]
-        lt_rps = [r["throughput_rps"] for r in lt]
-
-        W, p = wilcoxon_signed_rank(cm_rps, lt_rps)
-        d, mag = cliffs_delta(cm_rps, lt_rps)
-        diff_pct = (mean(cm_rps) - mean(lt_rps)) / mean(lt_rps) * 100
-
-        p_values.append(p)
-        row_data.append((sc, mean(cm_rps), mean(lt_rps), diff_pct, W, p, d, mag))
-
-    adjusted, significant = bonferroni(p_values)
-
-    for i, (sc, cm_m, lt_m, diff, W, p, d, mag) in enumerate(row_data):
-        sig_marker = "$^*$" if significant[i] else ""
-        p_str = f"{adjusted[i]:.3f}" if adjusted[i] >= 0.001 else "$<$0.001"
+        row = primary.get(sc)
+        if not row:
+            continue
+        sig = row["significant_after_holm"] in ("True", "true", "1")
+        sig_marker = "$^*$" if sig else ""
+        p_adj = float(row["p_adjusted_holm"])
+        p_str = f"{p_adj:.3f}" if p_adj >= 0.001 else "$<$0.001"
+        diff = float(row["diff_pct"]) if row["diff_pct"] not in ("", "None") else float("nan")
         lines.append(
-            f"{sc.upper()} & {SCENARIO_NAMES[sc]} & {cm_m:.1f} & {lt_m:.1f} & "
-            f"{diff:+.1f} & {W:.0f} & {p_str}{sig_marker} & "
-            f"{d:+.3f} ({mag}) \\\\"
+            f"{sc.upper()} & {SCENARIO_NAMES[sc]} & {float(row['cm_median']):.1f} & "
+            f"{float(row['lt_median']):.1f} & {diff:+.1f} & {float(row['U_statistic']):.0f} & "
+            f"{p_str}{sig_marker} & {float(row['cliffs_delta']):+.3f} ({row['effect_size']}) \\\\"
         )
 
+    n_cm = primary[SCENARIO_ORDER[0]]["n_cm"] if primary else "?"
     lines += [
         r"\hline",
         r"\end{tabular}",
         r"\vspace{2mm}",
-        r"\raggedright\footnotesize Wilcoxon signed-rank test ($n=5$ paired observations). $p$-values adjusted with Bonferroni correction ($m=12$). $^*$Significant at $\alpha=0.05$ after correction. Cliff's $d$: $|d|<0.147$ negligible, $<0.33$ small, $<0.474$ medium, $\geq0.474$ large.",
+        rf"\raggedright\footnotesize Two-sided Mann-Whitney U test (unpaired, $n={n_cm}$ per arm). "
+        r"$p$-values are Holm-Bonferroni corrected within the throughput (primary) metric family, $m=12$. "
+        r"$^*$Significant at $\alpha=0.05$ after correction. Cliff's $d$: $|d|<0.147$ negligible, "
+        r"$<0.33$ small, $<0.474$ medium, $\geq0.474$ large. 95\% CIs for $d$ "
+        r"(BCa bootstrap, 10{,}000 resamples; percentile fallback where BCa is degenerate under "
+        r"perfect separation) are in \texttt{analysis/results/statistical\_tests.csv}, omitted here for space.",
         r"\end{table}",
     ]
 
@@ -294,58 +233,49 @@ def table5_statistical_tests(records):
 
 
 # ---------------------------------------------------------------------------
-# Table 6: Overhead Comparison
+# Table 6: Overhead / Resource Comparison
 # ---------------------------------------------------------------------------
-def table6_overhead(records):
-    groups = defaultdict(list)
-    for r in records:
-        groups[(r["tool"], r["scenario"])].append(r)
+def table6_overhead():
+    summary = _index(_read_csv("summary_stats.csv"), "tool", "scenario")
 
     lines = [
         r"\begin{table}[ht]",
         r"\centering",
-        r"\caption{Resource overhead during fault injection}",
+        r"\caption{Recovery time and pod restarts during fault injection (median, n=30)}",
         r"\label{tab:overhead}",
         r"\small",
         r"\begin{tabular}{clrrrr}",
         r"\hline",
-        r"\textbf{ID} & \textbf{Scenario} & \multicolumn{2}{c}{\textbf{CPU Spike (\%)}} & \multicolumn{2}{c}{\textbf{Memory Spike (MB)}} \\",
+        r"\textbf{ID} & \textbf{Scenario} & \multicolumn{2}{c}{\textbf{Recovery time (s)}} & \multicolumn{2}{c}{\textbf{Pod restarts}} \\",
         r"& & CM & LT & CM & LT \\",
         r"\hline",
     ]
 
     for sc in SCENARIO_ORDER:
-        cm = groups.get(("chaos-mesh", sc), [])
-        lt = groups.get(("litmus", sc), [])
+        cm = summary.get(("Chaos Mesh", sc))
+        lt = summary.get(("LitmusChaos", sc))
+        if not cm or not lt:
+            continue
 
-        cm_cpu = [r["cpu_spike_pct"] for r in cm]
-        lt_cpu = [r["cpu_spike_pct"] for r in lt]
-        cm_mem = [r["memory_spike_mb"] for r in cm]
-        lt_mem = [r["memory_spike_mb"] for r in lt]
+        def rec_s(row):
+            v = row.get("recovery_time_median_s")
+            return f"{float(v):.1f}" if v not in (None, "", "None") else "--"
 
         lines.append(
             f"{sc.upper()} & {SCENARIO_NAMES[sc]} & "
-            f"{mean(cm_cpu):.0f} & {mean(lt_cpu):.0f} & "
-            f"{mean(cm_mem):.1f} & {mean(lt_mem):.1f} \\\\"
+            f"{rec_s(cm)} & {rec_s(lt)} & "
+            f"{float(cm['pod_restarts_median']):.0f} & {float(lt['pod_restarts_median']):.0f} \\\\"
         )
-
-    # Overall
-    all_cm = [r for r in records if r["tool"] == "chaos-mesh"]
-    all_lt = [r for r in records if r["tool"] == "litmus"]
-    lines.append(r"\hline")
-    lines.append(
-        f"& \\textbf{{Overall}} & "
-        f"\\textbf{{{mean([r['cpu_spike_pct'] for r in all_cm]):.0f}}} & "
-        f"\\textbf{{{mean([r['cpu_spike_pct'] for r in all_lt]):.0f}}} & "
-        f"\\textbf{{{mean([r['memory_spike_mb'] for r in all_cm]):.1f}}} & "
-        f"\\textbf{{{mean([r['memory_spike_mb'] for r in all_lt]):.1f}}} \\\\"
-    )
 
     lines += [
         r"\hline",
         r"\end{tabular}",
         r"\vspace{2mm}",
-        r"\raggedright\footnotesize CPU Spike = percentage increase in aggregate CPU usage during fault phase relative to baseline. Memory Spike = absolute increase in aggregate memory usage (MB). Negative CPU values indicate the killed pod's CPU contribution dropped to zero.",
+        r"\raggedright\footnotesize Recovery time = elapsed seconds from fault end until mean CPU across "
+        r"faulted pods first returns to within 20\% of that run's own baseline-phase CPU mean, "
+        r"right-censored at 60s (this study's recovery-phase length) if never reached; an operational "
+        r"definition introduced for this analysis, not literally pre-specified beyond naming "
+        r"``recovery time'' as a metric (see PREREGISTRATION.md and analysis/analyze.py docstring).",
         r"\end{table}",
     ]
 
@@ -358,17 +288,12 @@ def table6_overhead(records):
 # Main
 # ---------------------------------------------------------------------------
 def main():
-    print("Loading data...")
-    records = load_data()
-    print(f"  {len(records)} records")
-
-    print("\nGenerating tables...")
+    print("Generating tables from analysis/results/ CSVs...")
     table2_tool_comparison()
     table3_scenarios()
-    table4_results(records)
-    table5_statistical_tests(records)
-    table6_overhead(records)
-
+    table4_results()
+    table5_statistical_tests()
+    table6_overhead()
     print(f"\nAll tables saved to {TABLE_DIR}/")
 
 

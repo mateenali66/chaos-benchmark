@@ -1,37 +1,61 @@
-scenario,scenario_name,metric,cm_mean,lt_mean,diff_pct,W,p_value,cliffs_delta,effect_size,p_adjusted,significant
-a1,HTTP Abort 503,Throughput (rps),19.13,17.48,9.4,7.0,0.8927,-0.28,small,1.0,False
-a1,HTTP Abort 503,Latency p99 (ms),267.28,436.16,-38.7,0,0.0431,-1.0,large,1.0,False
-a1,HTTP Abort 503,Error rate,0.879,1.0393,-15.4,5.0,0.5002,-0.12,negligible,1.0,False
-a2,gRPC Unavailable,Throughput (rps),19.41,18.59,4.4,5.0,0.5002,0.28,small,1.0,False
-a2,gRPC Unavailable,Latency p99 (ms),430.07,432.69,-0.6,4.0,0.3452,-0.36,medium,1.0,False
-a2,gRPC Unavailable,Error rate,0.9089,1.0159,-10.5,5.0,0.5002,-0.12,negligible,1.0,False
-n1,Latency 50ms,Throughput (rps),32.42,16.04,102.1,1.0,0.0796,0.84,large,1.0,False
-n1,Latency 50ms,Latency p99 (ms),402.71,438.41,-8.1,0,0.0431,-0.92,large,1.0,False
-n1,Latency 50ms,Error rate,0.6996,1.4131,-50.5,0,0.0431,-1.0,large,1.0,False
-n2,Latency 100ms,Throughput (rps),42.74,23.92,78.7,2.0,0.138,0.6,large,1.0,False
-n2,Latency 100ms,Latency p99 (ms),376.02,417.49,-9.9,2.0,0.138,-0.6,large,1.0,False
-n2,Latency 100ms,Error rate,0.6006,0.7621,-21.2,4.0,0.3452,-0.44,medium,1.0,False
-n3,Latency 300ms,Throughput (rps),22.5,16.78,34.1,3.0,0.2249,0.36,medium,1.0,False
-n3,Latency 300ms,Latency p99 (ms),422.21,434.69,-2.9,3.0,0.2249,-0.44,medium,1.0,False
-n3,Latency 300ms,Error rate,1.5899,2.4468,-35.0,4.0,0.3452,-0.52,large,1.0,False
-n4,Packet Loss 5%,Throughput (rps),32.47,16.9,92.1,0,0.0431,0.84,large,1.0,False
-n4,Packet Loss 5%,Latency p99 (ms),394.21,436.31,-9.6,0,0.0431,-0.84,large,1.0,False
-n4,Packet Loss 5%,Error rate,0.773,1.547,-50.0,0,0.0431,-0.76,large,1.0,False
-n5,Network Partition,Throughput (rps),40.46,17.94,125.5,1.0,0.0796,0.84,large,1.0,False
-n5,Network Partition,Latency p99 (ms),379.58,433.53,-12.4,1.0,0.0796,-0.8,large,1.0,False
-n5,Network Partition,Error rate,0.8617,1.0728,-19.7,6.0,0.6858,-0.44,medium,1.0,False
-p1,Pod Kill,Throughput (rps),48.46,21.35,127.0,1.0,0.0796,0.68,large,1.0,False
-p1,Pod Kill,Latency p99 (ms),367.84,423.89,-13.2,1.0,0.0796,-0.68,large,1.0,False
-p1,Pod Kill,Error rate,0.485,0.9057,-46.4,2.0,0.138,-0.52,large,1.0,False
-p2,Container Kill,Throughput (rps),38.56,21.05,83.2,0,0.0431,0.68,large,1.0,False
-p2,Container Kill,Latency p99 (ms),395.42,302.02,30.9,0,0.0431,0.68,large,1.0,False
-p2,Container Kill,Error rate,1.9047,4.8003,-60.3,0,0.0431,-0.6,large,1.0,False
-p3,Pod Failure,Throughput (rps),43.89,20.21,117.1,2.0,0.138,0.68,large,1.0,False
-p3,Pod Failure,Latency p99 (ms),373.92,425.88,-12.2,2.0,0.138,-0.6,large,1.0,False
-p3,Pod Failure,Error rate,0.8257,1.0384,-20.5,4.0,0.3452,-0.2,small,1.0,False
-r1,CPU Stress 80%,Throughput (rps),25.92,22.77,13.9,6.0,0.6858,0.2,small,1.0,False
-r1,CPU Stress 80%,Latency p99 (ms),393.85,423.68,-7.0,4.0,0.3452,-0.28,small,1.0,False
-r1,CPU Stress 80%,Error rate,0.9883,0.713,38.6,7.0,0.8927,-0.12,negligible,1.0,False
-r2,Memory Pressure 80%,Throughput (rps),29.07,21.11,37.7,1.0,0.0796,0.6,large,1.0,False
-r2,Memory Pressure 80%,Latency p99 (ms),409.47,426.4,-4.0,3.0,0.2249,-0.6,large,1.0,False
-r2,Memory Pressure 80%,Error rate,0.4622,0.5851,-21.0,5.0,0.5002,-0.6,large,1.0,False
+scenario,scenario_name,metric,n_cm,n_lt,cm_median,cm_q1,cm_q3,lt_median,lt_q1,lt_q3,diff_pct,U_statistic,p_value,cliffs_delta,effect_size,delta_ci_95_lo,delta_ci_95_hi,delta_ci_method,p_adjusted_holm,significant_after_holm,is_primary_family
+a1,HTTP Abort 503,Throughput (rps),30,30,77.485,77.48,77.49,115.59,101.225,119.59,-33.0,0.0,0.0,-1.0,large,-1.0,-1.0,percentile_fallback,0.0,True,True
+a2,gRPC Unavailable,Throughput (rps),30,30,119.8,119.74,119.8,119.8,119.74,119.8,0.0,472.0,0.71555,0.049,negligible,-0.209,0.298,BCa,1.0,False,True
+n1,Latency 50ms,Throughput (rps),30,30,119.8,119.74,119.8,119.8,119.74,119.8,0.0,479.5,0.60688,0.066,negligible,-0.18,0.302,BCa,1.0,False,True
+n2,Latency 100ms,Throughput (rps),30,30,119.8,119.8,119.8,119.8,119.755,119.8,0.0,474.0,0.63808,0.053,negligible,-0.167,0.264,BCa,1.0,False,True
+n3,Latency 300ms,Throughput (rps),30,30,119.8,119.755,119.8,119.8,119.74,119.8,0.0,467.5,0.75072,0.039,negligible,-0.2,0.271,BCa,1.0,False,True
+n4,Packet Loss 5%,Throughput (rps),30,30,119.79,119.74,119.8,119.8,119.752,119.8,-0.0,354.5,0.1176,-0.212,small,-0.462,0.06,BCa,1.0,False,True
+n5,Network Partition,Throughput (rps),30,30,119.8,119.8,119.8,119.8,119.752,119.8,0.0,502.5,0.31078,0.117,negligible,-0.104,0.338,BCa,1.0,False,True
+p1,Pod Kill,Throughput (rps),30,30,119.8,119.8,119.8,119.8,119.742,119.8,0.0,535.5,0.12061,0.19,small,-0.049,0.413,BCa,1.0,False,True
+p2,Container Kill,Throughput (rps),30,30,119.58,119.535,119.59,103.845,89.335,105.675,15.2,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,True
+p3,Pod Failure,Throughput (rps),30,30,119.795,119.733,119.8,119.8,119.8,119.8,-0.0,302.0,0.0102,-0.329,small,-0.547,-0.087,BCa,0.102,False,True
+r1,CPU Stress 80%,Throughput (rps),30,30,119.8,119.74,119.8,119.8,119.755,119.8,0.0,371.0,0.17103,-0.176,small,-0.411,0.076,BCa,1.0,False,True
+r2,Memory Pressure 80%,Throughput (rps),30,30,119.8,119.8,119.8,119.8,119.74,119.8,0.0,497.0,0.38465,0.104,negligible,-0.127,0.328,BCa,1.0,False,True
+a1,HTTP Abort 503,Latency p99 (ms),30,30,97.57,84.418,114.765,29299.455,956.288,84750.0,-99.7,0.0,0.0,-1.0,large,-1.0,-1.0,percentile_fallback,0.0,True,False
+a2,gRPC Unavailable,Latency p99 (ms),30,30,5960.0,5870.0,6097.5,319.49,265.275,852.48,1765.5,856.0,0.0,0.902,large,0.64,0.996,BCa,0.0,True,False
+n1,Latency 50ms,Latency p99 (ms),30,30,247.04,218.01,272.255,245.31,222.077,269.377,0.7,407.5,0.53462,-0.094,negligible,-0.381,0.213,BCa,1.0,False,False
+n2,Latency 100ms,Latency p99 (ms),30,30,1020.0,1020.0,1030.0,642.305,241.442,998.015,58.8,835.0,0.0,0.856,large,0.66,0.947,BCa,0.0,True,False
+n3,Latency 300ms,Latency p99 (ms),30,30,2565.0,2500.0,2637.5,1318.085,240.413,2450.0,94.6,802.5,0.0,0.783,large,0.558,0.908,BCa,0.0,True,False
+n4,Packet Loss 5%,Latency p99 (ms),30,30,269.57,217.152,282.305,291.84,242.788,319.998,-7.6,354.5,0.16015,-0.212,small,-0.497,0.089,BCa,0.80075,False,False
+n5,Network Partition,Latency p99 (ms),30,30,45880.0,45627.5,46322.5,246.59,227.808,284.163,18505.8,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+p1,Pod Kill,Latency p99 (ms),30,30,244.865,221.118,288.442,250.75,230.625,297.41,-2.3,425.5,0.72271,-0.054,negligible,-0.351,0.233,BCa,1.0,False,False
+p2,Container Kill,Latency p99 (ms),30,30,1190.0,1122.5,1745.0,78000.0,16512.5,101850.0,-98.5,61.0,0.0,-0.864,large,-0.958,-0.676,BCa,0.0,True,False
+p3,Pod Failure,Latency p99 (ms),30,30,69000.0,68400.0,69600.0,248.19,218.143,329.79,27701.3,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+r1,CPU Stress 80%,Latency p99 (ms),30,30,249.73,233.405,276.16,263.93,224.637,293.502,-5.4,368.0,0.2282,-0.182,small,-0.461,0.119,BCa,0.80075,False,False
+r2,Memory Pressure 80%,Latency p99 (ms),30,30,250.235,218.593,268.988,263.165,201.473,302.335,-4.9,356.0,0.16685,-0.209,small,-0.484,0.096,BCa,0.80075,False,False
+a1,HTTP Abort 503,Error rate,30,30,0.232,0.222,0.236,0.047,0.002,0.105,394.8,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+a2,gRPC Unavailable,Error rate,30,30,0.002,0.002,0.002,0.0,0.0,0.001,251.9,827.0,0.0,0.838,large,0.582,0.953,BCa,0.0,True,False
+n1,Latency 50ms,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,465.0,0.33371,0.033,negligible,0.0,0.167,BCa,1.0,False,False
+n2,Latency 100ms,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,452.0,0.9591,0.004,negligible,-0.1,0.139,BCa,1.0,False,False
+n3,Latency 300ms,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,465.0,0.33371,0.033,negligible,0.0,0.167,BCa,1.0,False,False
+n4,Packet Loss 5%,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,-100.0,253.0,0.00034,-0.438,medium,-0.633,-0.211,BCa,0.00204,True,False
+n5,Network Partition,Error rate,30,30,0.009,0.009,0.009,0.0,0.0,0.0,,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+p1,Pod Kill,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.001,-85.7,123.0,0.0,-0.727,large,-0.87,-0.482,BCa,0.0,True,False
+p2,Container Kill,Error rate,30,30,0.002,0.002,0.002,0.724,0.582,0.923,-99.8,1.0,0.0,-0.998,large,-1.0,-0.964,BCa,0.0,True,False
+p3,Pod Failure,Error rate,30,30,0.014,0.014,0.015,0.001,0.001,0.001,1412.0,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+r1,CPU Stress 80%,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,436.0,0.59719,-0.031,negligible,-0.133,0.07,BCa,1.0,False,False
+r2,Memory Pressure 80%,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,420.0,0.1608,-0.067,negligible,-0.2,0.0,BCa,0.804,False,False
+a1,HTTP Abort 503,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,-100.0,412.0,0.54722,-0.084,negligible,-0.349,0.184,BCa,1.0,False,False
+a2,gRPC Unavailable,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,539.0,0.15546,0.198,small,-0.076,0.451,BCa,1.0,False,False
+n1,Latency 50ms,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,-66.0,387.0,0.33739,-0.14,negligible,-0.411,0.147,BCa,1.0,False,False
+n2,Latency 100ms,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,-70.0,94.0,0.4361,-0.164,small,-0.538,0.253,BCa,1.0,False,False
+n3,Latency 300ms,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,,94.0,0.4177,-0.164,small,-0.529,0.236,BCa,1.0,False,False
+n4,Packet Loss 5%,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,-100.0,89.5,0.32491,-0.204,small,-0.569,0.227,BCa,1.0,False,False
+n5,Network Partition,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,,175.0,0.00599,0.556,large,0.173,0.813,BCa,0.07188,False,False
+p1,Pod Kill,Recovery time (s),30,26,0.0,0.0,0.0,0.0,0.0,0.0,58.1,424.0,0.56422,0.087,negligible,-0.214,0.367,BCa,1.0,False,False
+p2,Container Kill,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,523.0,0.25513,0.162,small,-0.127,0.42,BCa,1.0,False,False
+p3,Pod Failure,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,207.7,491.0,0.52998,0.091,negligible,-0.19,0.376,BCa,1.0,False,False
+r1,CPU Stress 80%,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,541.0,0.15546,0.202,small,-0.084,0.464,BCa,1.0,False,False
+r2,Memory Pressure 80%,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,439.5,0.87137,-0.023,negligible,-0.291,0.246,BCa,1.0,False,False
+a1,HTTP Abort 503,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+a2,gRPC Unavailable,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+n1,Latency 50ms,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+n2,Latency 100ms,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+n3,Latency 300ms,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+n4,Packet Loss 5%,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+n5,Network Partition,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+p1,Pod Kill,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+p2,Container Kill,Pod restarts,30,30,1.0,1.0,1.0,3.0,3.0,3.0,-66.7,15.0,0.0,-0.967,large,-1.0,-0.833,BCa,0.0,True,False
+p3,Pod Failure,Pod restarts,30,30,3.0,3.0,3.0,0.0,0.0,0.0,,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
+r1,CPU Stress 80%,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
+r2,Memory Pressure 80%,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,435.0,0.33371,-0.033,negligible,-0.167,0.0,BCa,1.0,False,False

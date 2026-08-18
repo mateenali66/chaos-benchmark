@@ -1,6 +1,6 @@
 \begin{table*}[ht]
 \centering
-\caption{Per-scenario benchmark results (mean $\pm$ 95\% CI, $n=5$ repetitions)}
+\caption{Per-scenario benchmark results (median [IQR], $n=30$ repetitions)}
 \label{tab:results}
 \small
 \begin{tabular}{clrrrrrr}
@@ -8,25 +8,23 @@
 \textbf{ID} & \textbf{Scenario} & \multicolumn{2}{c}{\textbf{Throughput (rps)}} & \multicolumn{2}{c}{\textbf{p99 Latency (ms)}} & \multicolumn{2}{c}{\textbf{Error Rate}} \\
 & & CM & LT & CM & LT & CM & LT \\
 \hline
-P1 & Pod Kill & $48.5 \pm 32.6$ & $21.3 \pm 9.5$ & $367.8 \pm 68.6$ & $423.9 \pm 24.9$ & $0.49 \pm 0.22$ & $0.91 \pm 0.57$ \\
-P2 & Container Kill & $38.6 \pm 25.7$ & $21.0 \pm 13.8$ & $395.4 \pm 55.6$ & $302.0 \pm 85.6$ & $1.90 \pm 1.18$ & $4.80 \pm 4.52$ \\
-P3 & Pod Failure & $43.9 \pm 28.0$ & $20.2 \pm 9.3$ & $373.9 \pm 68.5$ & $425.9 \pm 23.5$ & $0.83 \pm 0.32$ & $1.04 \pm 0.67$ \\
+P1 & Pod Kill & $119.8$ [119.8, 119.8] & $119.8$ [119.7, 119.8] & $244.9$ [221.1, 288.4] & $250.8$ [230.6, 297.4] & $0.000$ & $0.000$ \\
+P2 & Container Kill & $119.6$ [119.5, 119.6] & $103.8$ [89.3, 105.7] & $1190.0$ [1122.5, 1745.0] & $78000.0$ [16512.5, 101850.0] & $0.002$ & $0.724$ \\
+P3 & Pod Failure & $119.8$ [119.7, 119.8] & $119.8$ [119.8, 119.8] & $69000.0$ [68400.0, 69600.0] & $248.2$ [218.1, 329.8] & $0.014$ & $0.001$ \\
 \hline
-N1 & Latency 50ms & $32.4 \pm 27.2$ & $16.0 \pm 1.2$ & $402.7 \pm 52.9$ & $438.4 \pm 3.8$ & $0.70 \pm 0.33$ & $1.41 \pm 0.35$ \\
-N2 & Latency 100ms & $42.7 \pm 23.3$ & $23.9 \pm 7.0$ & $376.0 \pm 52.0$ & $417.5 \pm 17.8$ & $0.60 \pm 0.55$ & $0.76 \pm 0.44$ \\
-N3 & Latency 300ms & $22.5 \pm 11.3$ & $16.8 \pm 3.7$ & $422.2 \pm 23.1$ & $434.7 \pm 12.0$ & $1.59 \pm 1.56$ & $2.45 \pm 1.59$ \\
-N4 & Packet Loss 5\% & $32.5 \pm 20.6$ & $16.9 \pm 4.3$ & $394.2 \pm 57.0$ & $436.3 \pm 7.1$ & $0.77 \pm 0.33$ & $1.55 \pm 1.04$ \\
-N5 & Network Partition & $40.5 \pm 19.5$ & $17.9 \pm 2.4$ & $379.6 \pm 50.4$ & $433.5 \pm 6.7$ & $0.86 \pm 0.81$ & $1.07 \pm 0.36$ \\
+N1 & Latency 50ms & $119.8$ [119.7, 119.8] & $119.8$ [119.7, 119.8] & $247.0$ [218.0, 272.2] & $245.3$ [222.1, 269.4] & $0.000$ & $0.000$ \\
+N2 & Latency 100ms & $119.8$ [119.8, 119.8] & $119.8$ [119.8, 119.8] & $1020.0$ [1020.0, 1030.0] & $642.3$ [241.4, 998.0] & $0.000$ & $0.000$ \\
+N3 & Latency 300ms & $119.8$ [119.8, 119.8] & $119.8$ [119.7, 119.8] & $2565.0$ [2500.0, 2637.5] & $1318.1$ [240.4, 2450.0] & $0.000$ & $0.000$ \\
+N4 & Packet Loss 5\% & $119.8$ [119.7, 119.8] & $119.8$ [119.8, 119.8] & $269.6$ [217.2, 282.3] & $291.8$ [242.8, 320.0] & $0.000$ & $0.000$ \\
+N5 & Network Partition & $119.8$ [119.8, 119.8] & $119.8$ [119.8, 119.8] & $45880.0$ [45627.5, 46322.5] & $246.6$ [227.8, 284.2] & $0.009$ & $0.000$ \\
 \hline
-R1 & CPU Stress 80\% & $25.9 \pm 13.2$ & $22.8 \pm 7.8$ & $393.8 \pm 59.9$ & $423.7 \pm 14.5$ & $0.99 \pm 1.12$ & $0.71 \pm 0.52$ \\
-R2 & Memory Pressure 80\% & $29.1 \pm 11.3$ & $21.1 \pm 0.9$ & $409.5 \pm 26.0$ & $426.4 \pm 1.9$ & $0.46 \pm 0.42$ & $0.59 \pm 0.02$ \\
+R1 & CPU Stress 80\% & $119.8$ [119.7, 119.8] & $119.8$ [119.8, 119.8] & $249.7$ [233.4, 276.2] & $263.9$ [224.6, 293.5] & $0.000$ & $0.000$ \\
+R2 & Memory Pressure 80\% & $119.8$ [119.8, 119.8] & $119.8$ [119.7, 119.8] & $250.2$ [218.6, 269.0] & $263.2$ [201.5, 302.3] & $0.000$ & $0.000$ \\
 \hline
-A1 & HTTP Abort 503 & $19.1 \pm 7.7$ & $17.5 \pm 2.7$ & $267.3 \pm 16.9$ & $436.2 \pm 6.1$ & $0.88 \pm 0.29$ & $1.04 \pm 0.52$ \\
-A2 & gRPC Unavailable & $19.4 \pm 4.3$ & $18.6 \pm 4.0$ & $430.1 \pm 12.4$ & $432.7 \pm 10.0$ & $0.91 \pm 0.28$ & $1.02 \pm 0.55$ \\
-\hline
-& \textbf{Overall} & $\mathbf{32.9 \pm 6.4}$ & $\mathbf{19.5 \pm 2.0}$ & $\mathbf{384.4 \pm 19.2}$ & $\mathbf{419.3 \pm 14.9}$ & $\mathbf{0.91 \pm 0.24}$ & $\mathbf{1.44 \pm 0.56}$ \\
+A1 & HTTP Abort 503 & $77.5$ [77.5, 77.5] & $115.6$ [101.2, 119.6] & $97.6$ [84.4, 114.8] & $29299.5$ [956.3, 84750.0] & $0.232$ & $0.047$ \\
+A2 & gRPC Unavailable & $119.8$ [119.7, 119.8] & $119.8$ [119.7, 119.8] & $5960.0$ [5870.0, 6097.5] & $319.5$ [265.3, 852.5] & $0.002$ & $0.001$ \\
 \hline
 \end{tabular}
 \vspace{2mm}
-\raggedright\footnotesize CM = Chaos Mesh, LT = LitmusChaos. Values shown as mean $\pm$ 95\% CI ($t$-distribution, $df=4$).
+\raggedright\footnotesize CM = Chaos Mesh, LT = LitmusChaos. Values shown as median [Q1, Q3] across $n=30$ repetitions per (tool, scenario) cell (crossover-allocated across two clusters, amendment item 1). Throughput and p99 latency are aggregated over the whole baseline+fault+recovery protocol window, not fault-phase-isolated (see PREREGISTRATION.md).
 \end{table*}
