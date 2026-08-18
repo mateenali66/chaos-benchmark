@@ -12,10 +12,6 @@ Figures:
     Fig 7: Throughput by fault category (grouped box plots)
 """
 
-import json
-import glob
-import os
-from collections import defaultdict
 from pathlib import Path
 
 import matplotlib
@@ -30,7 +26,7 @@ import pandas as pd
 # Configuration
 # ---------------------------------------------------------------------------
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+RESULTS_DIR = Path(__file__).parent / "results"
 FIG_DIR = Path(__file__).parent / "figures"
 FIG_DIR.mkdir(exist_ok=True)
 
@@ -50,13 +46,6 @@ SCENARIO_NAMES = {
 }
 
 SCENARIO_ORDER = ["p1", "p2", "p3", "n1", "n2", "n3", "n4", "n5", "r1", "r2", "a1", "a2"]
-
-CATEGORY_MAP = {
-    "p1": "Pod/Container", "p2": "Pod/Container", "p3": "Pod/Container",
-    "n1": "Network", "n2": "Network", "n3": "Network", "n4": "Network", "n5": "Network",
-    "r1": "Resource", "r2": "Resource",
-    "a1": "Application", "a2": "Application",
-}
 
 CATEGORY_ORDER = ["Pod/Container", "Network", "Resource", "Application"]
 
@@ -88,42 +77,31 @@ plt.rcParams.update({
 # ---------------------------------------------------------------------------
 
 def load_data():
-    records = []
-    for fpath in sorted(glob.glob(str(DATA_DIR / "*" / "*" / "run-*.json"))):
-        with open(fpath) as f:
-            d = json.load(f)
-        m = d["metadata"]
-        w = d["wrk2"]
-        dr = d.get("derived", {})
-        phases = d.get("phases", {})
-
-        records.append({
-            "Tool": TOOL_LABELS.get(m["tool"], m["tool"]),
-            "scenario": m["scenario"],
-            "Scenario": SCENARIO_NAMES.get(m["scenario"], m["scenario"]),
-            "Category": CATEGORY_MAP.get(m["scenario"], "Unknown"),
-            "run": m["run"],
-            "Throughput (rps)": w["throughput_rps"],
-            "Latency p50 (ms)": w["latency_ms"]["p50"],
-            "Latency p95 (ms)": w["latency_ms"]["p95"],
-            "Latency p99 (ms)": w["latency_ms"]["p99"],
-            "Mean Latency (ms)": w["latency_ms"]["mean"],
-            "Timeouts": w["errors"]["timeout"],
-            "HTTP Errors": w["errors"]["http_non2xx3xx"],
-            "Read Errors": w["errors"]["read"],
-            "Write Errors": w["errors"]["write"],
-            "Total Requests": w["requests_total"],
-            "Error Rate": (
-                (w["errors"]["timeout"] + w["errors"]["http_non2xx3xx"] +
-                 w["errors"]["read"] + w["errors"]["write"]) /
-                max(w["requests_total"], 1)
-            ),
-            "Pod Restarts": dr.get("pod_restarts_during_fault", 0),
-            "CPU Spike (%)": dr.get("cpu_spike_pct", 0),
-            "Memory Spike (MB)": dr.get("memory_spike_mb", 0),
-        })
-
-    return pd.DataFrame(records)
+    """Reads analysis/results/runs_long.csv (written by analyze.py) -- does
+    NOT independently reload or reparse raw run JSON, so figures cannot
+    drift out of sync with the tables/statistics analyze.py computed from
+    the same underlying data. Run analysis/analyze.py first."""
+    path = RESULTS_DIR / "runs_long.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found -- run analysis/analyze.py first")
+    raw = pd.read_csv(path)
+    df = pd.DataFrame({
+        "Tool": raw["tool"].map(TOOL_LABELS).fillna(raw["tool"]),
+        "scenario": raw["scenario"],
+        "Scenario": raw["scenario"].map(SCENARIO_NAMES).fillna(raw["scenario"]),
+        "Category": raw["category"],
+        "run": raw["run"],
+        "cluster": raw["cluster"],
+        "Throughput (rps)": raw["throughput_rps"],
+        "Latency p99 (ms)": raw["latency_p99"],
+        "Mean Latency (ms)": raw["latency_mean"],
+        "Error Rate": raw["error_rate"],
+        "Pod Restarts": raw["pod_restarts"],
+        "CPU Spike (%)": raw["cpu_spike_pct"],
+        "Memory Spike (MB)": raw["memory_spike_mb"],
+        "Recovery Time (s)": raw["recovery_time_s"],
+    })
+    return df
 
 
 def save_fig(fig, name):

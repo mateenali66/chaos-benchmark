@@ -1,0 +1,49 @@
+tool,scenario,cluster,n,rps_median,rps_q1,rps_q3
+Chaos Mesh,a1,bench-a,15,77.48,77.46,77.49
+Chaos Mesh,a1,bench-b,15,77.49,77.48,77.49
+Chaos Mesh,a2,bench-a,15,119.8,119.74,119.8
+Chaos Mesh,a2,bench-b,15,119.8,119.74,119.8
+Chaos Mesh,n1,bench-a,15,119.8,119.77,119.8
+Chaos Mesh,n1,bench-b,15,119.8,119.73,119.8
+Chaos Mesh,n2,bench-a,15,119.8,119.8,119.8
+Chaos Mesh,n2,bench-b,15,119.8,119.8,119.8
+Chaos Mesh,n3,bench-a,15,119.8,119.77,119.8
+Chaos Mesh,n3,bench-b,15,119.8,119.77,119.8
+Chaos Mesh,n4,bench-a,15,119.79,119.74,119.8
+Chaos Mesh,n4,bench-b,15,119.79,119.73,119.8
+Chaos Mesh,n5,bench-a,15,119.8,119.8,119.8
+Chaos Mesh,n5,bench-b,15,119.8,119.8,119.8
+Chaos Mesh,p1,bench-a,15,119.8,119.8,119.8
+Chaos Mesh,p1,bench-b,15,119.8,119.8,119.8
+Chaos Mesh,p2,bench-a,15,119.58,119.54,119.59
+Chaos Mesh,p2,bench-b,15,119.58,119.53,119.59
+Chaos Mesh,p3,bench-a,15,119.8,119.73,119.8
+Chaos Mesh,p3,bench-b,15,119.74,119.73,119.8
+Chaos Mesh,r1,bench-a,15,119.74,119.73,119.8
+Chaos Mesh,r1,bench-b,15,119.8,119.77,119.8
+Chaos Mesh,r2,bench-a,15,119.8,119.8,119.8
+Chaos Mesh,r2,bench-b,15,119.8,119.77,119.8
+LitmusChaos,a1,bench-a,15,119.59,119.45,119.59
+LitmusChaos,a1,bench-b,15,101.22,99.56,102.87
+LitmusChaos,a2,bench-a,15,119.8,119.74,119.8
+LitmusChaos,a2,bench-b,15,119.8,119.74,119.8
+LitmusChaos,n1,bench-a,15,119.8,119.74,119.8
+LitmusChaos,n1,bench-b,15,119.8,119.73,119.8
+LitmusChaos,n2,bench-a,15,119.8,119.74,119.8
+LitmusChaos,n2,bench-b,15,119.8,119.8,119.8
+LitmusChaos,n3,bench-a,15,119.8,119.74,119.8
+LitmusChaos,n3,bench-b,15,119.8,119.8,119.8
+LitmusChaos,n4,bench-a,15,119.8,119.74,119.8
+LitmusChaos,n4,bench-b,15,119.8,119.8,119.8
+LitmusChaos,n5,bench-a,15,119.8,119.8,119.8
+LitmusChaos,n5,bench-b,15,119.8,119.73,119.8
+LitmusChaos,p1,bench-a,15,119.8,119.75,119.8
+LitmusChaos,p1,bench-b,15,119.8,119.75,119.8
+LitmusChaos,p2,bench-a,15,104.92,90.57,105.97
+LitmusChaos,p2,bench-b,15,98.56,88.73,105.22
+LitmusChaos,p3,bench-a,15,119.8,119.8,119.8
+LitmusChaos,p3,bench-b,15,119.8,119.8,119.8
+LitmusChaos,r1,bench-a,15,119.8,119.77,119.8
+LitmusChaos,r1,bench-b,15,119.8,119.77,119.8
+LitmusChaos,r2,bench-a,15,119.8,119.8,119.8
+LitmusChaos,r2,bench-b,15,119.8,119.74,119.8
