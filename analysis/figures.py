@@ -146,13 +146,19 @@ def fig3_throughput_boxplots(df):
             for line in bp[element]:
                 line.set_color("black")
                 line.set_linewidth(0.8)
-        bp["medians"][0].set_label(tool)  # only first for legend
+        # NOT bp["medians"][0].set_label(tool): the median lines are
+        # recolored black two lines above, so a legend built from them shows
+        # black swatches for both tools regardless of box color (found in a
+        # 2026-08-18 visual QA pass) -- use explicit color-matched Patches
+        # instead, same pattern already used correctly in fig7 below.
 
     ax.set_xticks(positions)
     ax.set_xticklabels(scenario_labels, rotation=45, ha="right", fontsize=8)
     ax.set_ylabel("Throughput (requests/second)")
     ax.set_title("Throughput Comparison: Chaos Mesh vs LitmusChaos")
-    ax.legend(loc="upper right")
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=TOOL_COLORS[t], alpha=0.7, label=t) for t in ["Chaos Mesh", "LitmusChaos"]]
+    ax.legend(handles=legend_elements, loc="upper right")
 
     # Add category separators
     category_bounds = [0, 3, 8, 10]  # Pod, Network, Resource, Application boundaries
@@ -175,7 +181,18 @@ def fig3_throughput_boxplots(df):
 # ---------------------------------------------------------------------------
 
 def fig4_latency_comparison(df):
-    """Grouped bar chart of p99 latency per scenario."""
+    """Grouped bar chart of p99 latency per scenario.
+
+    Median + IQR error bars (not mean +/- std): p99 latency here is
+    extremely right-skewed (some tool/scenario cells' medians reach tens of
+    thousands of ms against a typical ~100ms baseline), matching
+    PREREGISTRATION.md's own "medians and IQRs, not means, for all skewed
+    metrics" rule -- the previous mean+std version both violated that rule
+    and hard-clipped the y-axis at 500ms with no visual indication,
+    silently cutting off real values by up to two orders of magnitude
+    (found in a 2026-08-18 visual QA pass). Log-scale y-axis given the
+    multi-order-of-magnitude range across scenarios.
+    """
     fig, ax = plt.subplots(figsize=(12, 5))
 
     scenario_labels = [SCENARIO_NAMES[s] for s in SCENARIO_ORDER]
@@ -184,18 +201,20 @@ def fig4_latency_comparison(df):
 
     for i, tool in enumerate(["Chaos Mesh", "LitmusChaos"]):
         tool_data = df[df["Tool"] == tool]
-        means = []
-        stds = []
+        medians, err_lo, err_hi = [], [], []
         for sc in SCENARIO_ORDER:
             vals = tool_data[tool_data["scenario"] == sc]["Latency p99 (ms)"].values
-            means.append(np.mean(vals))
-            stds.append(np.std(vals, ddof=1))
+            med = np.median(vals)
+            q1, q3 = np.percentile(vals, 25), np.percentile(vals, 75)
+            medians.append(med)
+            err_lo.append(max(med - q1, 0))
+            err_hi.append(max(q3 - med, 0))
 
-        bars = ax.bar(
+        ax.bar(
             x + (i - 0.5) * width,
-            means,
+            medians,
             width * 0.85,
-            yerr=stds,
+            yerr=[err_lo, err_hi],
             label=tool,
             color=TOOL_COLORS[tool],
             alpha=0.8,
@@ -205,10 +224,10 @@ def fig4_latency_comparison(df):
 
     ax.set_xticks(x)
     ax.set_xticklabels(scenario_labels, rotation=45, ha="right", fontsize=8)
-    ax.set_ylabel("p99 Latency (ms)")
-    ax.set_title("p99 Latency Comparison by Fault Scenario")
+    ax.set_ylabel("p99 Latency (ms, log scale)")
+    ax.set_title("p99 Latency Comparison by Fault Scenario (median, IQR)")
+    ax.set_yscale("log")
     ax.legend(loc="upper right")
-    ax.set_ylim(0, 500)
 
     fig.tight_layout()
     save_fig(fig, "fig4_latency_p99")
@@ -336,13 +355,16 @@ def fig7_category_boxplots(df):
                 line.set_color("black")
                 line.set_linewidth(0.8)
 
-    # Create manual legend
+    # Create manual legend. loc="upper right" used to overlap the
+    # Application category's boxes (the rightmost, tallest group, driven by
+    # a1/a2's significant tool separation) -- found in a 2026-08-18 visual
+    # QA pass. Placed outside the axes instead.
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor=TOOL_COLORS["Chaos Mesh"], alpha=0.7, label="Chaos Mesh"),
         Patch(facecolor=TOOL_COLORS["LitmusChaos"], alpha=0.7, label="LitmusChaos"),
     ]
-    ax.legend(handles=legend_elements, loc="upper right")
+    ax.legend(handles=legend_elements, loc="upper left", bbox_to_anchor=(1.01, 1.0))
 
     ax.set_xticks(positions)
     ax.set_xticklabels(cat_order, fontsize=10)
