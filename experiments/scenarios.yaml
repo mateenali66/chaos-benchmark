@@ -5,11 +5,18 @@
 ################################################################################
 
 metadata:
+  # Updated 2026-08-18: repetitions_per_scenario/tools/total_experiments below
+  # described the original SPE-rejected design (n=5, 3 tools incl. Gremlin,
+  # dropped for licensing). The current JSS-rework study is n=30, 2 tools
+  # (Gremlin dropped), 720 total runs across 12 scenarios -- see
+  # ../analysis/PREREGISTRATION.md's Component 1 design line for the
+  # authoritative current numbers. No script reads this metadata block
+  # (only the scenarios list below is read), so this was a stale-documentation
+  # trap, not a data bug.
   total_scenarios: 12
-  repetitions_per_scenario: 5
-  tools: [chaos-mesh, litmus, gremlin]
-  total_experiments: 180
-  estimated_hours: 33
+  repetitions_per_scenario: 30
+  tools: [chaos-mesh, litmus]
+  total_experiments: 720
   target_namespace: social-network
 
 scenarios:
