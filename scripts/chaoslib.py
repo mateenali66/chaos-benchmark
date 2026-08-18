@@ -41,8 +41,24 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 # CHAOS_DATA_DIR isolates the revision campaign's results from the archived
 # original 120-run dataset in data/ (different region/capacity; mixing them
 # via resume would reintroduce the infrastructure confound). Per-cluster roots:
-# data-v2/bench-a, data-v2/bench-b, data-v2/ml.
-DATA_DIR = Path(os.environ.get("CHAOS_DATA_DIR", str(PROJECT_ROOT / "data")))
+# data-v2/bench-a, data-v2/bench-b, data-v2/ml. Deliberately no silent
+# fallback to data/ here: that used to be the default, and it silently
+# misdirected three consecutive standalone backfill runs on 2026-08-17
+# (each one wrote perfectly valid data into the wrong directory tree and
+# never touched the real target files) before the cause was found. There is
+# also no single correct data-v2 subdirectory to guess (bench-a/bench-b/ml
+# are all valid but different), so guessing would just trade one
+# silent-wrong-default footgun for another -- fail loudly instead.
+_data_dir_env = os.environ.get("CHAOS_DATA_DIR")
+if not _data_dir_env:
+    raise RuntimeError(
+        "CHAOS_DATA_DIR is not set. chaoslib.py has no default -- set it explicitly, "
+        "e.g. export CHAOS_DATA_DIR=\"$(pwd)/data-v2/ml\" for Component 3 campaign work, "
+        "or data-v2/bench-a / data-v2/bench-b for Component 1/2 work. "
+        "(This check exists because a missing/wrong default silently misdirected three "
+        "backfill runs on 2026-08-17 before anyone noticed -- see git log.)"
+    )
+DATA_DIR = Path(_data_dir_env)
 WRK2_TEMPLATE = PROJECT_ROOT / "load-generator" / "wrk2-job.yaml.tpl"
 
 # Overridden per-account: export CHAOS_ECR_REPO after build-wrk2-image.sh

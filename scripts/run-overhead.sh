@@ -40,7 +40,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 export AWS_PROFILE="${AWS_PROFILE:-is-staging-mfa}"
 
-DATA_DIR="${CHAOS_DATA_DIR:-${PROJECT_ROOT}/data}"
+if [[ -z "${CHAOS_DATA_DIR:-}" ]]; then
+    echo "ERROR: CHAOS_DATA_DIR is not set. No default -- a missing/wrong default here" >&2
+    echo "silently misdirected standalone runs before (see chaoslib.py's DATA_DIR check)." >&2
+    echo "Set it explicitly, e.g. export CHAOS_DATA_DIR=\"\$(pwd)/data-v2/bench-a\"." >&2
+    exit 1
+fi
+DATA_DIR="${CHAOS_DATA_DIR}"
 PROGRESS_LOG="${DATA_DIR}/progress.log"
 
 TOOL=""
