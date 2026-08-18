@@ -836,10 +836,25 @@ def render_experiment_manifest(experiment_path: Path, namespace: str) -> Path:
     caller is responsible for cleanup (not done here, since the same
     experiment_path is applied and deleted multiple times across one
     run_fault_protocol call and cleanup must happen once, at the end).
+
+    Idempotent: run-campaign.py's own render_manifest() already substitutes
+    slot namespaces before writing _manifest-injection-N.yaml (added for the
+    Component 3 500-injection campaign study), so this can be called on a
+    manifest that is already namespace-correct. NAMESPACE ("social-network")
+    is a literal string-prefix of every non-zero slot's namespace
+    ("social-network-1", "social-network-2", ...), so a blind
+    text.replace(NAMESPACE, namespace) on already-substituted text doubles
+    the suffix ("social-network-2" -> "social-network-2-2"), producing a
+    namespace that doesn't exist -- found live 2026-08-17 after every fault
+    application in slots 1/2 had been silently failing (NotFound) since
+    campaign launch, because the failure's return value is discarded by the
+    caller. Detect the already-substituted case and no-op.
     """
     if namespace == NAMESPACE:
         return experiment_path
     text = experiment_path.read_text()
+    if f"namespace: {namespace}" in text or f"appns: {namespace}" in text:
+        return experiment_path
     rendered = text.replace(NAMESPACE, namespace)
     tmp_dir = Path(tempfile.mkdtemp())
     rendered_path = tmp_dir / experiment_path.name
@@ -915,7 +930,14 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
         # Phase 2: Inject fault
         print(f"\n  [Phase 2] FAULT ({fault_s}s) - Injecting {label}...")
         fault_start = time.time()
-        kubectl_apply_file(str(manifest_path))
+        # Must raise on failure, not just log: a swallowed False here means
+        # the protocol sleeps out the fault window with no fault active and
+        # records weakness signals from what is really baseline behavior --
+        # this exact silent-continue pattern let a namespace-doubling bug
+        # (see render_experiment_manifest) corrupt every slot-1/2 injection
+        # from campaign launch to 2026-08-17 before it was caught.
+        if not kubectl_apply_file(str(manifest_path)):
+            raise RuntimeError(f"fault manifest apply failed for {label} (namespace={namespace})")
         print(f"    Fault injected at {time.strftime('%H:%M:%S')}")
         time.sleep(fault_s)
         fault_end = time.time()
