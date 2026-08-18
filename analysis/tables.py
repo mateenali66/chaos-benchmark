@@ -251,6 +251,7 @@ def table6_overhead():
         r"\hline",
     ]
 
+    reduced_n = False
     for sc in SCENARIO_ORDER:
         cm = summary.get(("Chaos Mesh", sc))
         lt = summary.get(("LitmusChaos", sc))
@@ -258,8 +259,16 @@ def table6_overhead():
             continue
 
         def rec_s(row):
+            nonlocal reduced_n
             v = row.get("recovery_time_median_s")
-            return f"{float(v):.1f}" if v not in (None, "", "None") else "--"
+            if v in (None, "", "None"):
+                return "--"
+            n = int(row.get("recovery_time_n", row["n"]))
+            mark = ""
+            if n < int(row["n"]):
+                reduced_n = True
+                mark = f"$^{{n={n}}}$"
+            return f"{float(v):.1f}{mark}"
 
         lines.append(
             f"{sc.upper()} & {SCENARIO_NAMES[sc]} & "
@@ -267,6 +276,12 @@ def table6_overhead():
             f"{float(cm['pod_restarts_median']):.0f} & {float(lt['pod_restarts_median']):.0f} \\\\"
         )
 
+    reduced_n_note = (
+        r" Superscript $n=$ marks cells computed on fewer than the nominal 30 runs "
+        r"due to a Prometheus infra\_metrics collection gap affecting recovery\_time\_s "
+        r"only (data/exclusions.log; PREREGISTRATION.md Component 1 amendment item 8)."
+        if reduced_n else ""
+    )
     lines += [
         r"\hline",
         r"\end{tabular}",
@@ -275,7 +290,8 @@ def table6_overhead():
         r"faulted pods first returns to within 20\% of that run's own baseline-phase CPU mean, "
         r"right-censored at 60s (this study's recovery-phase length) if never reached; an operational "
         r"definition introduced for this analysis, not literally pre-specified beyond naming "
-        r"``recovery time'' as a metric (see PREREGISTRATION.md and analysis/analyze.py docstring).",
+        r"``recovery time'' as a metric (see PREREGISTRATION.md and analysis/analyze.py docstring)."
+        + reduced_n_note,
         r"\end{table}",
     ]
 

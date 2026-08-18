@@ -52,6 +52,9 @@ __pycache__/
 *.log
 *.out
 *.synctex.gz
+# exclusions.log is a pre-registered reproducibility record (PREREGISTRATION.md
+# "Exclusion and rerun rules"), not a build/run log -- must stay tracked.
+!data/exclusions.log
 
 # Screenshots (internal only)
 screenshots/

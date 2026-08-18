@@ -1,0 +1,138 @@
+# Exclusion log (analysis/PREREGISTRATION.md, Exclusion and rerun rules)
+#
+# Format: <run file> | <cause> | <disposition>
+#
+# NOTE (2026-08-18): this log was created retroactively. The 124 entries below
+# were found by a numerical-consistency audit during the analysis-phase rebuild,
+# not logged at collection time as the protocol above requires. They were NOT
+# excluded/rerun (both EKS clusters are already torn down; re-provisioning for
+# a completeness gap with no significance test riding on it was rejected by the
+# user 2026-08-18, same decision as Component 2's LitmusChaos overhead gap) --
+# they remain in the 720-run dataset with recovery_time_s/cpu_spike_pct/
+# memory_spike_mb null. See PREREGISTRATION.md Component 1 amendment item 8.
+# Any exclusion found from this point forward must be logged here in real time.
+#
+data-v2/bench-a/chaos-mesh/n2/run-1.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-2.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-3.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-4.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-5.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-6.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-7.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-8.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-9.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-10.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-11.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-12.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-13.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-14.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n2/run-15.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-1.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-2.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-3.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-4.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-5.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-6.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-7.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-8.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-9.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-10.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-11.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-12.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-13.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-14.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n3/run-15.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-1.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-2.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-3.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-4.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-5.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-6.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-7.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-8.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-9.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-10.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-11.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-12.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-13.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-14.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n4/run-15.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-1.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-2.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-3.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-4.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-5.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-6.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-7.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-8.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-9.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-10.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-11.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-12.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-13.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-14.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/chaos-mesh/n5/run-15.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-16.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-17.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-18.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-19.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-20.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-21.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-22.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-23.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-24.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-25.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-26.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-27.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-28.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-29.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n2/run-30.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-16.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-17.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-18.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-19.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-20.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-21.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-22.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-23.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-24.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-25.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-26.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-27.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-28.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-29.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n3/run-30.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-16.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-17.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-18.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-19.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-20.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-21.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-22.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-23.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-24.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-25.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-26.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-27.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-28.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-29.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n4/run-30.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-16.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-17.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-18.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-19.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-20.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-21.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-22.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-23.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-24.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-25.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-26.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-27.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-28.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-29.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-a/litmus/n5/run-30.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-b/litmus/p1/run-1.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-b/litmus/p1/run-2.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-b/litmus/p1/run-3.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above
+data-v2/bench-b/litmus/p1/run-4.json | infra_metrics collection gap (all phases: baseline, fault, recovery empty) | KEPT, not excluded -- see note above

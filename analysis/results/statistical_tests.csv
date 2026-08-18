@@ -35,18 +35,18 @@ p2,Container Kill,Error rate,30,30,0.002,0.002,0.002,0.724,0.582,0.923,-99.8,1.0
 p3,Pod Failure,Error rate,30,30,0.014,0.014,0.015,0.001,0.001,0.001,1412.0,900.0,0.0,1.0,large,1.0,1.0,percentile_fallback,0.0,True,False
 r1,CPU Stress 80%,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,436.0,0.59719,-0.031,negligible,-0.133,0.07,BCa,1.0,False,False
 r2,Memory Pressure 80%,Error rate,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,420.0,0.1608,-0.067,negligible,-0.2,0.0,BCa,0.804,False,False
-a1,HTTP Abort 503,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,-100.0,412.0,0.54722,-0.084,negligible,-0.349,0.184,BCa,1.0,False,False
-a2,gRPC Unavailable,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,539.0,0.15546,0.198,small,-0.076,0.451,BCa,1.0,False,False
-n1,Latency 50ms,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,-66.0,387.0,0.33739,-0.14,negligible,-0.411,0.147,BCa,1.0,False,False
-n2,Latency 100ms,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,-70.0,94.0,0.4361,-0.164,small,-0.538,0.253,BCa,1.0,False,False
-n3,Latency 300ms,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,,94.0,0.4177,-0.164,small,-0.529,0.236,BCa,1.0,False,False
-n4,Packet Loss 5%,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,-100.0,89.5,0.32491,-0.204,small,-0.569,0.227,BCa,1.0,False,False
-n5,Network Partition,Recovery time (s),15,15,0.0,0.0,0.0,0.0,0.0,0.0,,175.0,0.00599,0.556,large,0.173,0.813,BCa,0.07188,False,False
-p1,Pod Kill,Recovery time (s),30,26,0.0,0.0,0.0,0.0,0.0,0.0,58.1,424.0,0.56422,0.087,negligible,-0.214,0.367,BCa,1.0,False,False
-p2,Container Kill,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,523.0,0.25513,0.162,small,-0.127,0.42,BCa,1.0,False,False
-p3,Pod Failure,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,207.7,491.0,0.52998,0.091,negligible,-0.19,0.376,BCa,1.0,False,False
-r1,CPU Stress 80%,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,541.0,0.15546,0.202,small,-0.084,0.464,BCa,1.0,False,False
-r2,Memory Pressure 80%,Recovery time (s),30,30,0.0,0.0,0.0,0.0,0.0,0.0,,439.5,0.87137,-0.023,negligible,-0.291,0.246,BCa,1.0,False,False
+a1,HTTP Abort 503,Recovery time (s),30,30,60.0,18.75,60.0,60.0,15.0,60.0,-0.0,359.5,0.18058,-0.201,small,-0.476,0.104,BCa,1.0,False,False
+a2,gRPC Unavailable,Recovery time (s),30,30,60.0,18.75,60.0,60.0,45.0,60.0,0.0,464.5,0.82217,0.032,negligible,-0.25,0.293,BCa,1.0,False,False
+n1,Latency 50ms,Recovery time (s),30,30,60.0,60.0,60.0,60.0,45.0,60.0,0.0,520.0,0.2342,0.156,small,-0.109,0.393,BCa,1.0,False,False
+n2,Latency 100ms,Recovery time (s),15,15,60.0,30.0,60.0,60.0,60.0,60.0,0.0,105.5,0.76078,-0.062,negligible,-0.44,0.342,BCa,1.0,False,False
+n3,Latency 300ms,Recovery time (s),15,15,60.0,30.0,60.0,60.0,60.0,60.0,0.0,105.0,0.73681,-0.067,negligible,-0.44,0.307,BCa,1.0,False,False
+n4,Packet Loss 5%,Recovery time (s),15,15,60.0,37.5,60.0,45.0,0.0,60.0,33.3,138.5,0.27324,0.231,small,-0.204,0.609,BCa,1.0,False,False
+n5,Network Partition,Recovery time (s),15,15,60.0,45.0,60.0,60.0,22.5,60.0,0.0,154.5,0.08224,0.373,medium,-0.062,0.707,BCa,0.8224,False,False
+p1,Pod Kill,Recovery time (s),30,26,60.0,45.0,60.0,60.0,60.0,60.0,0.0,407.0,0.76612,0.044,negligible,-0.247,0.313,BCa,1.0,False,False
+p2,Container Kill,Recovery time (s),30,30,60.0,60.0,60.0,60.0,48.75,60.0,0.0,526.5,0.20447,0.17,small,-0.089,0.424,BCa,1.0,False,False
+p3,Pod Failure,Recovery time (s),30,30,0.0,0.0,0.0,60.0,60.0,60.0,-100.0,46.0,0.0,-0.898,large,-1.0,-0.666,BCa,0.0,True,False
+r1,CPU Stress 80%,Recovery time (s),30,30,60.0,60.0,60.0,60.0,48.75,60.0,0.0,589.0,0.01154,0.309,small,0.08,0.517,BCa,0.12694,False,False
+r2,Memory Pressure 80%,Recovery time (s),30,30,60.0,33.75,60.0,60.0,45.0,60.0,0.0,474.0,0.70598,0.053,negligible,-0.219,0.318,BCa,1.0,False,False
 a1,HTTP Abort 503,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
 a2,gRPC Unavailable,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False
 n1,Latency 50ms,Pod restarts,30,30,0.0,0.0,0.0,0.0,0.0,0.0,,450.0,1.0,0.0,negligible,0.0,0.0,percentile_fallback,1.0,False,False

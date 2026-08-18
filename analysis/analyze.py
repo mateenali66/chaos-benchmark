@@ -105,7 +105,10 @@ TOOL_LABELS = {"chaos-mesh": "Chaos Mesh", "litmus": "LitmusChaos"}
 
 def _cpu_series(phase_data: dict) -> list[tuple[float, float]]:
     """Flatten a phase's per-pod cpu_usage series into [(ts, value), ...]
-    across all pods, sorted by timestamp."""
+    across all pods, sorted by timestamp. Used only where order doesn't
+    matter (e.g. a flat mean over a whole phase) -- NOT for walking a
+    recovery threshold, since a single pod's reading at a shared timestamp
+    is not the cross-pod state at that instant. See _cpu_by_timestep_mean."""
     infra = phase_data.get("infra_metrics") or {}
     out = []
     for pod in infra.get("cpu_usage", []):
@@ -115,6 +118,26 @@ def _cpu_series(phase_data: dict) -> list[tuple[float, float]]:
             except (TypeError, ValueError):
                 pass
     return sorted(out)
+
+
+def _cpu_by_timestep_mean(phase_data: dict) -> list[tuple[float, float]]:
+    """Per-timestep mean CPU across pods within a phase, sorted by timestamp.
+    Unlike _cpu_series (which interleaves all pods' samples into one
+    timestamp-sorted list), this groups samples sharing a timestamp so each
+    entry reflects the whole pod set at that instant, not whichever single
+    pod's sample happened to sort next. Required for recovery-threshold
+    walking: a flattened multi-pod series lets an idle/unrelated pod's
+    near-zero reading satisfy the threshold immediately, which is the bug
+    found in a 2026-08-18 audit (every run reported ~0s recovery time)."""
+    infra = phase_data.get("infra_metrics") or {}
+    by_ts: dict[float, list[float]] = {}
+    for pod in infra.get("cpu_usage", []):
+        for ts, val in pod.get("values", []):
+            try:
+                by_ts.setdefault(float(ts), []).append(float(val))
+            except (TypeError, ValueError):
+                pass
+    return sorted((ts, sum(vals) / len(vals)) for ts, vals in by_ts.items())
 
 
 def _mean_cpu(phase_data: dict) -> float | None:
@@ -142,7 +165,7 @@ def _recovery_time_s(record: dict, baseline_cpu: float | None) -> float | None:
     crossed, or if baseline_cpu is unavailable/zero."""
     recovery = record["_phases"].get("recovery", {})
     fault_end = recovery.get("start")
-    series = _cpu_series(recovery)
+    series = _cpu_by_timestep_mean(recovery)
     if not baseline_cpu or fault_end is None or not series:
         return None
     threshold = baseline_cpu * RECOVERY_CPU_TOLERANCE
@@ -305,7 +328,9 @@ def compute_summary_stats(records: list[dict]) -> list[dict]:
         rps_med, rps_q1, rps_q3 = median_iqr([r["throughput_rps"] for r in recs])
         p99_med, p99_q1, p99_q3 = median_iqr([r["latency_p99"] for r in recs])
         err_med, err_q1, err_q3 = median_iqr([r["error_rate"] for r in recs])
-        rec_med, rec_q1, rec_q3 = median_iqr([r["recovery_time_s"] for r in recs])
+        recovery_vals = [r["recovery_time_s"] for r in recs]
+        rec_med, rec_q1, rec_q3 = median_iqr(recovery_vals)
+        rec_n = sum(1 for v in recovery_vals if v is not None)
         rows.append({
             "tool": TOOL_LABELS[tool], "scenario": scenario,
             "scenario_name": SCENARIO_NAMES.get(scenario, scenario),
@@ -313,8 +338,9 @@ def compute_summary_stats(records: list[dict]) -> list[dict]:
             "n": len(recs),
             "rps_median": round(rps_med, 2), "rps_q1": round(rps_q1, 2), "rps_q3": round(rps_q3, 2),
             "p99_median": round(p99_med, 2), "p99_q1": round(p99_q1, 2), "p99_q3": round(p99_q3, 2),
-            "error_rate_median": round(err_med, 4),
+            "error_rate_median": round(err_med, 6),
             "recovery_time_median_s": round(rec_med, 1) if rec_med == rec_med else None,
+            "recovery_time_n": rec_n,
             "pod_restarts_median": median_iqr([r["pod_restarts"] for r in recs])[0],
         })
     return rows
@@ -348,7 +374,7 @@ def compute_tool_summary(records: list[dict]) -> list[dict]:
             "tool": TOOL_LABELS[tool], "n": len(recs),
             "rps_median": round(rps_med, 2), "rps_q1": round(rps_q1, 2), "rps_q3": round(rps_q3, 2),
             "p99_median": round(p99_med, 2), "p99_q1": round(p99_q1, 2), "p99_q3": round(p99_q3, 2),
-            "error_rate_median": round(err_med, 4),
+            "error_rate_median": round(err_med, 6),
             "pod_restarts_total": sum(r["pod_restarts"] for r in recs),
         })
     return rows
@@ -366,7 +392,7 @@ def compute_category_comparison(records: list[dict]) -> list[dict]:
         rows.append({
             "tool": TOOL_LABELS[tool], "category": cat, "n_experiments": len(recs),
             "rps_median": round(rps_med, 2), "p99_median": round(p99_med, 2),
-            "error_rate_median": round(err_med, 4),
+            "error_rate_median": round(err_med, 6),
             "pod_restarts_median": median_iqr([r["pod_restarts"] for r in recs])[0],
         })
     return rows
