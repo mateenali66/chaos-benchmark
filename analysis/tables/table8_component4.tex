@@ -1,0 +1,20 @@
+\begin{table}[ht]
+\centering
+\caption{Component 4: balanced accuracy of throughput-direction prediction (36 candidates)}
+\label{tab:component4}
+\small
+\begin{tabular}{lrrrl}
+\hline
+\textbf{Arm} & \textbf{$n$} & \textbf{Balanced Acc.} & \textbf{95\% CI} & \textbf{Note} \\
+\hline
+LLM (Claude) & 180 & 0.469 & [0.406, 0.530] &  \\
+LLM (Llama 3) & 180 & 0.500 & [0.500, 0.500] & constant predictor \\
+LLM (Mistral) & 180 & 0.519 & [0.479, 0.558] &  \\
+Practitioner heuristic & 36 & 0.575 & [0.500, 0.667] &  \\
+Always-majority baseline & 36 & 0.500 & [0.500, 0.500] & constant predictor \\
+Chance & -- & 0.500 & -- &  \\
+\hline
+\end{tabular}
+\vspace{2mm}
+\raggedright\footnotesize 95\% CIs are percentile bootstrap (10{,}000 resamples, seed 42). ``Constant predictor'' means the arm predicted the same label for every sample in its scored set, which mechanically produces balanced accuracy $=0.5$ with zero-width CI -- not the same statistical claim as genuine chance-level performance from varying predictions (see PREREGISTRATION.md, amendment item 7).
+\end{table}
