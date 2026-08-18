@@ -7,6 +7,7 @@ nothing here re-derives or can drift from what those scripts already
 computed and PREREGISTRATION.md already documents.
 
 Tables:
+    Table 6b: Component 2 overhead decomposition (standing overhead vs fault side effects)
     Table 7: Component 3 discovery-curve results per arm + Kruskal-Wallis
     Table 8: Component 4 hypothesis-generation balanced accuracy per arm/baseline
     Table 9: Component 5 detector AUC-ROC vs static-threshold baseline
@@ -15,9 +16,18 @@ Figures:
     Fig 10: Component 3 discovery curves (median + IQR band per arm)
     Fig 11: Component 4 balanced accuracy with 95% CI, degenerate arms flagged
     Fig 12: Component 5 AUC-ROC with 95% CI per detector/baseline
+
+Table 6b exists because a 2026-08-18 numerical-consistency audit found
+Component 2's real result numbers (in analysis/results/component2_overhead.csv)
+had no LaTeX table at all: analysis/tables/table6_overhead.tex is Component
+1's recovery-time/pod-restart data (a name collision -- both are called
+"overhead" but measure different things), and component2_overhead.csv was
+never rendered anywhere. Numbered 6b, not 7, to sit next to Component 1's
+table 6 rather than renumber the ML tables already at 7/8/9.
 """
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -55,6 +65,48 @@ def save_fig(fig, name):
     fig.savefig(FIG_DIR / f"{name}.png", format="png")
     print(f"  Saved: {name}.pdf / {name}.png")
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Component 2
+# ---------------------------------------------------------------------------
+
+def table6b_component2():
+    with open(RESULTS_DIR / "component2_overhead.csv") as f:
+        rows = list(csv.DictReader(f))
+
+    lines = [
+        r"\begin{table}[ht]", r"\centering",
+        r"\caption{Component 2: overhead decomposition (Chaos Mesh, bench-a; LitmusChaos/bench-b unavailable)}",
+        r"\label{tab:component2}", r"\small",
+        r"\begin{tabular}{lrrrrr}", r"\hline",
+        r"\textbf{Metric} & \textbf{Baseline} & \textbf{Idle} & \textbf{Fault} & \textbf{Standing overhead} & \textbf{Fault side effect} \\",
+        r" & (no tool) & (tool, no fault) & (tool + fault) & (idle $-$ baseline) & (fault $-$ idle) \\",
+        r"\hline",
+    ]
+    for row in rows:
+        def ci(prefix):
+            lo, hi = row.get(f"{prefix}_ci_lo"), row.get(f"{prefix}_ci_hi")
+            return f" [{float(lo):.4f}, {float(hi):.4f}]" if lo not in (None, "", "nan") else ""
+        lines.append(
+            f"{row['metric']} & {float(row['baseline_median']):.4f} & {float(row['idle_median']):.4f} & "
+            f"{float(row['fault_median']):.4f} & "
+            f"{float(row['standing_overhead_idle_minus_baseline']):+.4f}{ci('standing_overhead')} & "
+            f"{float(row['fault_side_effect_fault_minus_idle']):+.4f}{ci('fault_side_effect')} \\\\"
+        )
+    n = rows[0]["n_baseline"] if rows else "?"
+    lines += [
+        r"\hline", r"\end{tabular}", r"\vspace{2mm}",
+        rf"\raggedright\footnotesize $n={n}$ repetitions per configuration. Values are bootstrap medians "
+        r"(CPU in cores, memory in MB); overhead/side-effect columns show the median difference with a "
+        r"95\% percentile bootstrap CI in brackets (10{,}000 resamples, seed 42). No significance test is "
+        r"registered for this component (PREREGISTRATION.md). LitmusChaos's entire overhead dataset "
+        r"(bench-b, 30 runs) has empty Prometheus metrics from the original collection and is not reported "
+        r"here -- its overhead is unknown, not zero.",
+        r"\end{table}",
+    ]
+    (TABLE_DIR / "table6b_component2.tex").write_text("\n".join(lines))
+    print("  Written: table6b_component2.tex")
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +325,9 @@ def fig12_component5_bars(data: dict):
 
 
 def main():
+    print("Component 2...")
+    table6b_component2()
+
     print("Component 3...")
     d3 = load_component3()
     table7_component3(d3)
