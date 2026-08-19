@@ -1,4 +1,4 @@
-\begin{table}[ht]
+\begin{table*}[ht]
 \centering
 \caption{Recovery time and pod restarts during fault injection (median, n=30)}
 \label{tab:overhead}
@@ -23,5 +23,5 @@ A2 & gRPC Unavailable & 60.0 & 60.0 & 0 & 0 \\
 \hline
 \end{tabular}
 \vspace{2mm}
-\raggedright\footnotesize Recovery time = elapsed seconds from fault end until mean CPU across faulted pods first returns to within 20\% of that run's own baseline-phase CPU mean, right-censored at 60s (this study's recovery-phase length) if never reached; an operational definition introduced for this analysis, not literally pre-specified beyond naming ``recovery time'' as a metric (see PREREGISTRATION.md and analysis/analyze.py docstring). Superscript $n=$ marks cells computed on fewer than the nominal 30 runs due to a Prometheus infra\_metrics collection gap affecting recovery\_time\_s only (data/exclusions.log; PREREGISTRATION.md Component 1 amendment item 8).
-\end{table}
+\raggedright\footnotesize Recovery time = elapsed seconds from fault end until mean CPU across faulted pods first returns to within 20\% of that run's own baseline-phase CPU mean, right-censored at 60s (this study's recovery-phase length) if never reached; an operational definition introduced for this analysis, not literally pre-specified beyond naming ``recovery time'' as a metric (Section~\ref{sec:meth-comp1}). Superscript $n=$ marks cells computed on fewer than the nominal 30 runs due to a Prometheus infrastructure-metrics collection gap affecting recovery time only (Section~\ref{sec:meth-comp1}).
+\end{table*}

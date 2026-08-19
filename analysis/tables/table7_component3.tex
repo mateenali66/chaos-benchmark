@@ -1,4 +1,4 @@
-\begin{table}[ht]
+\begin{table*}[ht]
 \centering
 \caption{Component 3: discovery-curve AUC by fault-selection arm (10 campaigns/arm)}
 \label{tab:component3}
@@ -15,5 +15,5 @@ LLM (Mistral) & 71.0 & 55.0 & 85.5 & 1.0000 &  \\
 \hline
 \end{tabular}
 \vspace{2mm}
-\raggedright\footnotesize Kruskal-Wallis across all 5 arms: $H=24.39$, $p=0.00007$. Pairwise $p$-values are two-sided Mann-Whitney U, Holm-corrected across all $\binom{5}{2}=10$ pairs (see \texttt{analysis/results/component3-scoring.json} for the full pairwise matrix, not only vs Random shown here). $^*$Significant at $\alpha=0.05$.
-\end{table}
+\raggedright\footnotesize Kruskal-Wallis across all 5 arms: $H=24.39$, $p=0.00007$. Pairwise $p$-values are two-sided Mann-Whitney U, Holm-corrected across all $\binom{5}{2}=10$ pairs (the full pairwise matrix, not only vs Random shown here, is in the reproducibility package, Section~\ref{sec:conclusions}). $^*$Significant at $\alpha=0.05$.
+\end{table*}

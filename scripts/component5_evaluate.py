@@ -175,6 +175,15 @@ def main():
             stat, p = wilcoxon(det_aucs, base_aucs, alternative="two-sided")
         confirmatory[name] = {
             "n_paired": len(paired),
+            # Paired-subset descriptive medians, added 2026-08-18 after a
+            # peer-review pass flagged that reporting the full-719-run
+            # detector median alongside the baseline's 299-run median in
+            # the same table cell mixes two different samples. These are
+            # each detector's own median AUC computed on exactly the same
+            # 299 runs the paired test uses, directly comparable to the
+            # baseline's paired-subset median.
+            "median_auc_paired_subset": float(np.median(det_aucs)),
+            "baseline_median_auc_paired_subset": float(np.median(base_aucs)),
             "median_diff": float(np.median(diffs)),
             "wilcoxon_statistic": float(stat) if stat == stat else None,
             "p_value": float(p),

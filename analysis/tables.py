@@ -54,7 +54,7 @@ def _index(rows: list[dict], *keys: str) -> dict:
 # Table 2: Tool Feature Comparison (static -- no experimental data involved)
 # ---------------------------------------------------------------------------
 def table2_tool_comparison():
-    latex = r"""\begin{table}[ht]
+    latex = r"""\begin{table*}[ht]
 \centering
 \caption{Chaos engineering tool comparison}
 \label{tab:tool-comparison}
@@ -62,7 +62,7 @@ def table2_tool_comparison():
 \hline
 \textbf{Feature} & \textbf{Chaos Mesh} & \textbf{LitmusChaos} \\
 \hline
-Version & 2.8.1 & 3.26.0 \\
+Major version & 2.x & 3.x \\
 License & Apache 2.0 & Apache 2.0 \\
 CNCF Status & Incubating & Incubating \\
 Installation & Helm chart & Helm + operator \\
@@ -72,12 +72,14 @@ Network faults & \checkmark & \checkmark \\
 Resource faults & \checkmark & \checkmark \\
 HTTP faults & \checkmark (HTTPChaos) & \checkmark (pod-http-status-code) \\
 Dashboard & Web UI & ChaosCenter UI \\
-Observability & Grafana plugin & Resilience probes \\
-AI/ML features & None & Resilience Score \\
-GitHub stars & 6.9k+ & 4.4k+ \\
+Observability & Grafana plugin & Resilience probes (deterministic score, not ML) \\
+LLM/agent interface & None & Model Context Protocol server \\
+GitHub stars (top-10 census, Nov.\ 2024)\textsuperscript{*} & \checkmark & \checkmark \\
 \hline
 \end{tabular}
-\end{table}"""
+\vspace{1mm}
+\raggedright\footnotesize\textsuperscript{*}Both tools independently rank in the top 10 of Owotogbe et al.'s GitHub-star-ranked chaos engineering platform census, verified against their published Table 13.
+\end{table*}"""
     with open(TABLE_DIR / "table2_tool_comparison.tex", "w") as f:
         f.write(latex)
     print("  Written: table2_tool_comparison.tex")
@@ -87,29 +89,51 @@ GitHub stars & 6.9k+ & 4.4k+ \\
 # Table 3: Fault Injection Scenarios (static)
 # ---------------------------------------------------------------------------
 def table3_scenarios():
-    latex = r"""\begin{table}[ht]
-\centering
-\caption{Fault injection scenarios and parameters}
-\label{tab:scenarios}
-\begin{tabular}{clllc}
-\hline
-\textbf{ID} & \textbf{Category} & \textbf{Scenario} & \textbf{Parameters} & \textbf{Target} \\
-\hline
-P1 & Pod/Container & Pod Kill & mode: one & compose-post \\
-P2 & Pod/Container & Container Kill & mode: one & compose-post \\
-P3 & Pod/Container & Pod Failure & duration: 120s & compose-post \\
-N1 & Network & Latency Injection & 50ms delay & compose-post \\
-N2 & Network & Latency Injection & 100ms delay & compose-post \\
-N3 & Network & Latency Injection & 300ms delay & compose-post \\
-N4 & Network & Packet Loss & 5\% loss rate & compose-post \\
-N5 & Network & Network Partition & full partition & compose-post \\
-R1 & Resource & CPU Stress & 80\% utilization & compose-post \\
-R2 & Resource & Memory Pressure & 80\% utilization & compose-post \\
-A1 & Application & HTTP Abort & 503 status code & nginx-thrift \\
-A2 & Application & gRPC Error & UNAVAILABLE & user-service \\
-\hline
-\end{tabular}
-\end{table}"""
+    """Generated from experiments/scenarios.yaml, not hardcoded -- a prior
+    hardcoded version listed "compose-post" as the target for 10 of 12
+    scenarios when only 2 actually target compose-post-service; found by a
+    2026-08-18 numerical-consistency audit that hand-verified every target
+    against the real config."""
+    import yaml
+    scenarios_path = Path(__file__).resolve().parent.parent / "experiments" / "scenarios.yaml"
+    with open(scenarios_path) as f:
+        cfg = yaml.safe_load(f)
+
+    category_labels = {"pod": "Pod/Container", "network": "Network",
+                        "resource": "Resource", "application": "Application"}
+    # Hand-verified against experiments/scenarios.yaml's actual `parameters`
+    # field per scenario (2026-08-18, after a peer-review pass caught P2
+    # showing a stale "mode: one" copied from P1 -- container-kill has no
+    # `mode` field, it targets named containers). Re-verify this dict against
+    # the YAML if scenarios.yaml's parameters ever change; unlike the target
+    # column above, formatting is too heterogeneous across action types
+    # (delay/loss/partition/stressors/abort) to auto-render compactly.
+    param_summaries = {
+        "P1": "mode: one", "P2": "container: nginx-thrift", "P3": "duration: 120s",
+        "N1": "50ms delay", "N2": "100ms delay", "N3": "300ms delay",
+        "N4": "5\\% loss rate", "N5": "full partition",
+        "R1": "80\\% utilization", "R2": "80\\% utilization",
+        "A1": "503 status code", "A2": "UNAVAILABLE",
+    }
+
+    rows = []
+    for sc in cfg["scenarios"]:
+        sid = sc["id"]
+        cat = category_labels[sc["category"]]
+        target = sc["target"]["name"]
+        name = sc["name"].replace("%", "\\%")
+        rows.append(f"{sid} & {cat} & {name} & {param_summaries[sid]} & {target} \\\\")
+
+    latex = "\\begin{table*}[ht]\n\\centering\n"
+    latex += "\\caption{Fault injection scenarios and parameters}\n"
+    latex += "\\label{tab:scenarios}\n"
+    latex += "\\small\n"
+    latex += "\\begin{tabular}{cllll}\n\\hline\n"
+    latex += r"\textbf{ID} & \textbf{Category} & \textbf{Scenario} & \textbf{Parameters} & \textbf{Target} \\" + "\n"
+    latex += "\\hline\n"
+    latex += "\n".join(rows) + "\n"
+    latex += "\\hline\n\\end{tabular}\n\\end{table*}"
+
     with open(TABLE_DIR / "table3_scenarios.tex", "w") as f:
         f.write(latex)
     print("  Written: table3_scenarios.tex")
@@ -127,7 +151,7 @@ def table4_results():
         r"\centering",
         rf"\caption{{Per-scenario benchmark results (median [IQR], $n={n}$ repetitions)}}",
         r"\label{tab:results}",
-        r"\small",
+        r"\scriptsize",
         r"\begin{tabular}{cl" + "rr" * 3 + "}",
         r"\hline",
         r"\textbf{ID} & \textbf{Scenario} & \multicolumn{2}{c}{\textbf{Throughput (rps)}} & \multicolumn{2}{c}{\textbf{p99 Latency (ms)}} & \multicolumn{2}{c}{\textbf{Error Rate}} \\",
@@ -158,7 +182,7 @@ def table4_results():
         lines.append(
             f"{sc.upper()} & {SCENARIO_NAMES[sc]} & "
             f"{fmt(cm, 'rps')} & {fmt(lt, 'rps')} & "
-            f"{fmt(cm, 'p99')} & {fmt(lt, 'p99')} & "
+            f"{fmt(cm, 'p99', 0)} & {fmt(lt, 'p99', 0)} & "
             f"{fmt(cm, 'error_rate', 3)} & {fmt(lt, 'error_rate', 3)} \\\\"
         )
 
@@ -168,8 +192,8 @@ def table4_results():
         r"\vspace{2mm}",
         r"\raggedright\footnotesize CM = Chaos Mesh, LT = LitmusChaos. Values shown as median [Q1, Q3] across "
         rf"$n={n}$ repetitions per (tool, scenario) cell (crossover-allocated across two clusters, "
-        r"amendment item 1). Throughput and p99 latency are aggregated over the whole "
-        r"baseline+fault+recovery protocol window, not fault-phase-isolated (see PREREGISTRATION.md).",
+        r"Section~\ref{sec:meth-comp1}). Throughput and p99 latency are aggregated over the whole "
+        r"baseline+fault+recovery protocol window, not fault-phase-isolated.",
         r"\end{table*}",
     ]
 
@@ -187,7 +211,7 @@ def table5_statistical_tests():
                if r["metric"] == "Throughput (rps)"}
 
     lines = [
-        r"\begin{table}[ht]",
+        r"\begin{table*}[ht]",
         r"\centering",
         r"\caption{Confirmatory statistical comparison of throughput: Chaos Mesh vs LitmusChaos}",
         r"\label{tab:stats}",
@@ -223,8 +247,8 @@ def table5_statistical_tests():
         r"$^*$Significant at $\alpha=0.05$ after correction. Cliff's $d$: $|d|<0.147$ negligible, "
         r"$<0.33$ small, $<0.474$ medium, $\geq0.474$ large. 95\% CIs for $d$ "
         r"(BCa bootstrap, 10{,}000 resamples; percentile fallback where BCa is degenerate under "
-        r"perfect separation) are in \texttt{analysis/results/statistical\_tests.csv}, omitted here for space.",
-        r"\end{table}",
+        r"perfect separation) are in the reproducibility package (Section~\ref{sec:conclusions}), omitted here for space.",
+        r"\end{table*}",
     ]
 
     with open(TABLE_DIR / "table5_statistical_tests.tex", "w") as f:
@@ -239,7 +263,7 @@ def table6_overhead():
     summary = _index(_read_csv("summary_stats.csv"), "tool", "scenario")
 
     lines = [
-        r"\begin{table}[ht]",
+        r"\begin{table*}[ht]",
         r"\centering",
         r"\caption{Recovery time and pod restarts during fault injection (median, n=30)}",
         r"\label{tab:overhead}",
@@ -278,8 +302,8 @@ def table6_overhead():
 
     reduced_n_note = (
         r" Superscript $n=$ marks cells computed on fewer than the nominal 30 runs "
-        r"due to a Prometheus infra\_metrics collection gap affecting recovery\_time\_s "
-        r"only (data/exclusions.log; PREREGISTRATION.md Component 1 amendment item 8)."
+        r"due to a Prometheus infrastructure-metrics collection gap affecting recovery time "
+        r"only (Section~\ref{sec:meth-comp1})."
         if reduced_n else ""
     )
     lines += [
@@ -290,9 +314,9 @@ def table6_overhead():
         r"faulted pods first returns to within 20\% of that run's own baseline-phase CPU mean, "
         r"right-censored at 60s (this study's recovery-phase length) if never reached; an operational "
         r"definition introduced for this analysis, not literally pre-specified beyond naming "
-        r"``recovery time'' as a metric (see PREREGISTRATION.md and analysis/analyze.py docstring)."
+        r"``recovery time'' as a metric (Section~\ref{sec:meth-comp1})."
         + reduced_n_note,
-        r"\end{table}",
+        r"\end{table*}",
     ]
 
     with open(TABLE_DIR / "table6_overhead.tex", "w") as f:

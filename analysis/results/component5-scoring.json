@@ -51,6 +51,8 @@
   "confirmatory_vs_static_threshold": {
     "ewma": {
       "n_paired": 299,
+      "median_auc_paired_subset": 0.6177777777777778,
+      "baseline_median_auc_paired_subset": 0.8402777777777779,
       "median_diff": -0.17817982456140358,
       "wilcoxon_statistic": 3698.0,
       "p_value": 6.106195178950801e-36,
@@ -59,6 +61,8 @@
     },
     "isolation_forest": {
       "n_paired": 299,
+      "median_auc_paired_subset": 0.8843243243243243,
+      "baseline_median_auc_paired_subset": 0.8402777777777779,
       "median_diff": 0.043611111111111156,
       "wilcoxon_statistic": 7818.5,
       "p_value": 2.7131846464956734e-22,
@@ -67,6 +71,8 @@
     },
     "autoencoder": {
       "n_paired": 299,
+      "median_auc_paired_subset": 0.848536036036036,
+      "baseline_median_auc_paired_subset": 0.8402777777777779,
       "median_diff": 0.02533783783783783,
       "wilcoxon_statistic": 12677.5,
       "p_value": 1.1410798802355615e-10,
@@ -75,6 +81,8 @@
     },
     "deep_svdd": {
       "n_paired": 299,
+      "median_auc_paired_subset": 0.8108108108108107,
+      "baseline_median_auc_paired_subset": 0.8402777777777779,
       "median_diff": -0.0050675675675675436,
       "wilcoxon_statistic": 21429.0,
       "p_value": 0.5696320833207451,

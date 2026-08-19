@@ -1,6 +1,6 @@
-\begin{table}[ht]
+\begin{table*}[ht]
 \centering
-\caption{Component 2: overhead decomposition (Chaos Mesh, bench-a; LitmusChaos/bench-b unavailable)}
+\caption{Component 2: overhead decomposition (Chaos Mesh, Cluster A; LitmusChaos/Cluster B unavailable)}
 \label{tab:component2}
 \small
 \begin{tabular}{lrrrrr}
@@ -13,5 +13,5 @@ Memory (MB) & 20.2399 & 20.1312 & 22.5400 & -0.1087 [-0.2904, 0.2408] & +2.4088 
 \hline
 \end{tabular}
 \vspace{2mm}
-\raggedright\footnotesize $n=10$ repetitions per configuration. Values are bootstrap medians (CPU in cores, memory in MB); overhead/side-effect columns show the median difference with a 95\% percentile bootstrap CI in brackets (10{,}000 resamples, seed 42). No significance test is registered for this component (PREREGISTRATION.md). LitmusChaos's entire overhead dataset (bench-b, 30 runs) has empty Prometheus metrics from the original collection and is not reported here -- its overhead is unknown, not zero.
-\end{table}
+\raggedright\footnotesize $n=10$ repetitions per configuration. Values are bootstrap medians (CPU in cores, memory in MB); overhead/side-effect columns show the median difference with a 95\% percentile bootstrap CI in brackets (10{,}000 resamples, seed 42). No significance test is registered for this component. LitmusChaos's entire overhead dataset (Cluster B, 30 runs) has empty Prometheus metrics from the original collection and is not reported here -- its overhead is unknown, not zero.
+\end{table*}

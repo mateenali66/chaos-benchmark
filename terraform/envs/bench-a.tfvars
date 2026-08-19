@@ -25,7 +25,10 @@ az_count = 3
 
 node_instance_types = ["m5.xlarge"]
 capacity_type       = "ON_DEMAND"
-node_desired_size = 9
+# Corrected 2026-08-18: was 9, inconsistent with max_size below (AWS caps desired
+# at max on apply); the actually-provisioned/applied cluster ran 3 nodes, matching
+# analysis/PREREGISTRATION.md and terraform.tfstate.d/bench-a's applied state.
+node_desired_size = 3
 node_min_size       = 3
 node_max_size       = 3
 
