@@ -8,7 +8,7 @@ Reproducibility package for the paper (working title):
 >
 > In preparation for the *Journal of Systems and Software* (Elsevier), 2026. An earlier, narrower version of this manuscript (a 2-tool benchmark with no ML component) was rejected after full peer review by *Software: Practice and Experience* (Wiley) in August 2026; both reviewers' core objection was that the title promised machine learning while the empirical work contained none. This repository reflects the reworked study, which adds three genuine ML components (Components 3-5 below) built and run against the same infrastructure. The rejected version is preserved at `../archive/spe-rejected-2026-08-15/`.
 
-This repository contains the infrastructure code, experiment definitions, orchestration scripts, raw data, and statistical analysis for five components run against a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed on AWS EKS:
+This repository contains the infrastructure code, experiment definitions, orchestration scripts, and statistical analysis for five components run against a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed on AWS EKS; the raw experiment data is archived separately on Zenodo (see Data Availability below):
 
 | # | Component | What it measures | Status |
 |---|-----------|-------------------|--------|
@@ -142,6 +142,30 @@ Each Component 1/2/3 run/injection produces a JSON file with `metadata` (tool/sc
 - **Component 5**: AUC-ROC per detector with 95% percentile bootstrap CIs across runs; paired Wilcoxon signed-rank vs the static-threshold baseline, Holm-corrected across the 4 detectors.
 
 Full detail, including every mid-study amendment and why it was made, is in `analysis/PREREGISTRATION.md`.
+
+## Data Availability
+
+The raw experiment data for all five components (720 Component 1 runs, 60 Component 2 runs, 500 Component 3 injections, 540 Component 4 generations, Component 5 detector-scoring outputs) is archived on Zenodo:
+
+- DOI: [ZENODO_DOI_PLACEHOLDER](https://doi.org/ZENODO_DOI_PLACEHOLDER) (concept DOI, always resolves to the latest version), CC BY 4.0.
+
+This supersedes the earlier concept DOI 10.5281/zenodo.20574917, which archived only the superseded n=5 pilot dataset (120 runs, two tools, no ML components) from this study's original SPE submission -- do not use it for this rework. All infrastructure code, experiment manifests, orchestration scripts, and statistical analysis are in this repository.
+
+## Citation
+
+If you use this benchmark in your research, please cite:
+
+```bibtex
+@article{anjum2026chaosjss,
+  title={Machine Learning for Chaos Engineering: A Taxonomy and a
+         Three-Phase Empirical Evaluation of Fault Selection, Hypothesis
+         Generation, and Impact Detection},
+  author={Anjum, Mateen Ali},
+  journal={Journal of Systems and Software},
+  year={2026},
+  note={In preparation}
+}
+```
 
 ## License
 
