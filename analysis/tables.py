@@ -257,6 +257,67 @@ def table5_statistical_tests():
 
 
 # ---------------------------------------------------------------------------
+# Table 5b: Confirmatory statistical comparison of the two registered
+# secondary metric families (latency p99, error rate) -- added after a peer
+# review pass flagged that the manuscript's own "latency diverges" claim was
+# never backed by a shown significance test, even though both families are
+# registered in the stats plan and already computed in statistical_tests.csv.
+# ---------------------------------------------------------------------------
+def table5b_secondary_metrics():
+    tests = _read_csv("statistical_tests.csv")
+    latency = {r["scenario"]: r for r in tests if r["metric"] == "Latency p99 (ms)"}
+    error = {r["scenario"]: r for r in tests if r["metric"] == "Error rate"}
+
+    lines = [
+        r"\begin{table*}[ht]",
+        r"\centering",
+        r"\caption{Confirmatory statistical comparison of the two secondary metric families: p99 latency and error rate}",
+        r"\label{tab:stats-secondary}",
+        r"\small",
+        r"\begin{tabular}{clrrlrrl}",
+        r"\hline",
+        r"\multicolumn{2}{c}{} & \multicolumn{3}{c}{\textbf{p99 latency (ms)}} & \multicolumn{3}{c}{\textbf{Error rate}} \\",
+        r"\textbf{ID} & \textbf{Scenario} & \textbf{CM} & \textbf{LT} & \textbf{$p_{\mathrm{Holm}}$} & \textbf{CM} & \textbf{LT} & \textbf{$p_{\mathrm{Holm}}$} \\",
+        r"\hline",
+    ]
+
+    def _fmt_p(row):
+        sig = row["significant_after_holm"] in ("True", "true", "1")
+        sig_marker = "$^*$" if sig else ""
+        p_adj = float(row["p_adjusted_holm"])
+        p_str = f"{p_adj:.3f}" if p_adj >= 0.001 else "$<$0.001"
+        return f"{p_str}{sig_marker}"
+
+    for sc in SCENARIO_ORDER:
+        lrow = latency.get(sc)
+        erow = error.get(sc)
+        if not lrow or not erow:
+            continue
+        lines.append(
+            f"{sc.upper()} & {SCENARIO_NAMES[sc]} & {float(lrow['cm_median']):.0f} & "
+            f"{float(lrow['lt_median']):.0f} & {_fmt_p(lrow)} & "
+            f"{float(erow['cm_median']):.3f} & {float(erow['lt_median']):.3f} & {_fmt_p(erow)} \\\\"
+        )
+
+    lines += [
+        r"\hline",
+        r"\end{tabular}",
+        r"\vspace{2mm}",
+        r"\raggedright\footnotesize Two-sided Mann-Whitney U test (unpaired, $n=30$ per arm) for each secondary "
+        r"family, Holm-Bonferroni corrected within its own family ($m=12$), independent of the throughput "
+        r"(primary) family's correction in Table~\ref{tab:stats}. $^*$Significant at $\alpha=0.05$ after correction. "
+        r"7 of 12 scenarios show significant p99 latency differences despite only 2 of 12 showing a significant "
+        r"throughput difference (Table~\ref{tab:stats}); 7 of 12 show significant error-rate differences. "
+        r"Effect sizes and CIs for both families are in the reproducibility package (Section~\ref{sec:conclusions}).",
+        r"\end{table*}",
+    ]
+
+    with open(TABLE_DIR / "table5b_secondary_metrics.tex", "w") as f:
+        f.write("\n".join(lines))
+    print("  Written: table5b_secondary_metrics.tex")
+
+
+# ---------------------------------------------------------------------------
 # Table 6: Overhead / Resource Comparison
 # ---------------------------------------------------------------------------
 def table6_overhead():
@@ -333,6 +394,7 @@ def main():
     table3_scenarios()
     table4_results()
     table5_statistical_tests()
+    table5b_secondary_metrics()
     table6_overhead()
     print(f"\nAll tables saved to {TABLE_DIR}/")
 
