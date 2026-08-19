@@ -147,7 +147,7 @@ Full detail, including every mid-study amendment and why it was made, is in `ana
 
 The raw experiment data for all five components (720 Component 1 runs, 60 Component 2 runs, 500 Component 3 injections, 540 Component 4 generations, Component 5 detector-scoring outputs) is archived on Zenodo:
 
-- DOI: [ZENODO_DOI_PLACEHOLDER](https://doi.org/ZENODO_DOI_PLACEHOLDER) (concept DOI, always resolves to the latest version), CC BY 4.0.
+- DOI: [10.5281/zenodo.22004603](https://doi.org/10.5281/zenodo.22004603) (concept DOI, always resolves to the latest version), CC BY 4.0.
 
 This supersedes the earlier concept DOI 10.5281/zenodo.20574917, which archived only the superseded n=5 pilot dataset (120 runs, two tools, no ML components) from this study's original SPE submission -- do not use it for this rework. All infrastructure code, experiment manifests, orchestration scripts, and statistical analysis are in this repository.
 
