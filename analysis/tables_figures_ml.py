@@ -76,8 +76,8 @@ def table6b_component2():
         rows = list(csv.DictReader(f))
 
     lines = [
-        r"\begin{table}[ht]", r"\centering",
-        r"\caption{Component 2: overhead decomposition (Chaos Mesh, bench-a; LitmusChaos/bench-b unavailable)}",
+        r"\begin{table*}[ht]", r"\centering",
+        r"\caption{Component 2: overhead decomposition (Chaos Mesh, Cluster A; LitmusChaos/Cluster B unavailable)}",
         r"\label{tab:component2}", r"\small",
         r"\begin{tabular}{lrrrrr}", r"\hline",
         r"\textbf{Metric} & \textbf{Baseline} & \textbf{Idle} & \textbf{Fault} & \textbf{Standing overhead} & \textbf{Fault side effect} \\",
@@ -100,10 +100,10 @@ def table6b_component2():
         rf"\raggedright\footnotesize $n={n}$ repetitions per configuration. Values are bootstrap medians "
         r"(CPU in cores, memory in MB); overhead/side-effect columns show the median difference with a "
         r"95\% percentile bootstrap CI in brackets (10{,}000 resamples, seed 42). No significance test is "
-        r"registered for this component (PREREGISTRATION.md). LitmusChaos's entire overhead dataset "
-        r"(bench-b, 30 runs) has empty Prometheus metrics from the original collection and is not reported "
+        r"registered for this component. LitmusChaos's entire overhead dataset "
+        r"(Cluster B, 30 runs) has empty Prometheus metrics from the original collection and is not reported "
         r"here -- its overhead is unknown, not zero.",
-        r"\end{table}",
+        r"\end{table*}",
     ]
     (TABLE_DIR / "table6b_component2.tex").write_text("\n".join(lines))
     print("  Written: table6b_component2.tex")
@@ -126,7 +126,7 @@ def table7_component3(data: dict):
                            for p in data["pairwise_mann_whitney"] if "random" in (p["arm_a"], p["arm_b"])}
 
     lines = [
-        r"\begin{table}[ht]", r"\centering",
+        r"\begin{table*}[ht]", r"\centering",
         r"\caption{Component 3: discovery-curve AUC by fault-selection arm (10 campaigns/arm)}",
         r"\label{tab:component3}", r"\small",
         r"\begin{tabular}{lrrrrl}", r"\hline",
@@ -145,9 +145,9 @@ def table7_component3(data: dict):
         r"\hline", r"\end{tabular}", r"\vspace{2mm}",
         rf"\raggedright\footnotesize Kruskal-Wallis across all 5 arms: $H={kw['statistic']:.2f}$, "
         rf"$p={kw['p_value']:.5f}$. Pairwise $p$-values are two-sided Mann-Whitney U, Holm-corrected across "
-        r"all $\binom{5}{2}=10$ pairs (see \texttt{analysis/results/component3-scoring.json} for the full "
-        r"pairwise matrix, not only vs Random shown here). $^*$Significant at $\alpha=0.05$.",
-        r"\end{table}",
+        r"all $\binom{5}{2}=10$ pairs (the full pairwise matrix, not only vs Random shown here, is in the "
+        r"reproducibility package, Section~\ref{sec:conclusions}). $^*$Significant at $\alpha=0.05$.",
+        r"\end{table*}",
     ]
     (TABLE_DIR / "table7_component3.tex").write_text("\n".join(lines))
     print("  Written: table7_component3.tex")
@@ -195,7 +195,7 @@ ARM4_LABELS = {
 def table8_component4(data: dict):
     results = data["results"]
     lines = [
-        r"\begin{table}[ht]", r"\centering",
+        r"\begin{table*}[ht]", r"\centering",
         r"\caption{Component 4: balanced accuracy of throughput-direction prediction (36 candidates)}",
         r"\label{tab:component4}", r"\small",
         r"\begin{tabular}{lrrrl}", r"\hline",
@@ -218,9 +218,8 @@ def table8_component4(data: dict):
         r"\raggedright\footnotesize 95\% CIs are percentile bootstrap (10{,}000 resamples, seed 42). "
         r"``Constant predictor'' means the arm predicted the same label for every sample in its scored set, "
         r"which mechanically produces balanced accuracy $=0.5$ with zero-width CI -- not the same statistical "
-        r"claim as genuine chance-level performance from varying predictions (see PREREGISTRATION.md, "
-        r"amendment item 7).",
-        r"\end{table}",
+        r"claim as genuine chance-level performance from varying predictions (Section~\ref{sec:meth-comp4}).",
+        r"\end{table*}",
     ]
     (TABLE_DIR / "table8_component4.tex").write_text("\n".join(lines))
     print("  Written: table8_component4.tex")
@@ -268,11 +267,11 @@ def table9_component5(data: dict):
     summary = data["summary"]
     confirmatory = data["confirmatory_vs_static_threshold"]
     lines = [
-        r"\begin{table}[ht]", r"\centering",
-        r"\caption{Component 5: detector AUC-ROC vs the static-threshold baseline (719 runs)}",
+        r"\begin{table*}[ht]", r"\centering",
+        r"\caption{Component 5: detector AUC-ROC vs the static-threshold baseline}",
         r"\label{tab:component5}", r"\small",
-        r"\begin{tabular}{lrrrl}", r"\hline",
-        r"\textbf{Detector} & \textbf{$n$} & \textbf{Median AUC} & \textbf{95\% CI} & \textbf{vs Baseline ($p_{\mathrm{Holm}}$)} \\",
+        r"\begin{tabular}{lrrrrl}", r"\hline",
+        r"\textbf{Detector} & \textbf{$n$ (full)} & \textbf{Median AUC (full)} & \textbf{Median AUC ($n=299$ paired)} & \textbf{95\% CI (full)} & \textbf{vs Baseline ($p_{\mathrm{Holm}}$)} \\",
         r"\hline",
     ]
     for name in DETECTOR5_ORDER:
@@ -282,19 +281,25 @@ def table9_component5(data: dict):
         ci = f"[{s['ci_95_lo']:.3f}, {s['ci_95_hi']:.3f}]" if s.get("ci_95_lo") is not None else "--"
         if name == "static_threshold":
             excl = s["n_degenerate_excluded"]
+            paired_med = med  # baseline's own full-sample median IS its paired-subset median (n=299 already)
             vs_base = rf"({excl} degenerate runs excluded)"
         else:
             c = confirmatory[name]
+            paired_med = f"{c['median_auc_paired_subset']:.3f}" if c.get("median_auc_paired_subset") is not None else "--"
             sig = "$^*$" if c.get("significant_after_holm") else ""
             vs_base = f"{c['p_adjusted_holm']:.2e}{sig}" if c.get("p_adjusted_holm") is not None else "--"
-        lines.append(f"{DETECTOR_LABELS[name]} & {n} & {med} & {ci} & {vs_base} \\\\")
+        lines.append(f"{DETECTOR_LABELS[name]} & {n} & {med} & {paired_med} & {ci} & {vs_base} \\\\")
     lines += [
         r"\hline", r"\end{tabular}", r"\vspace{2mm}",
-        r"\raggedright\footnotesize 95\% CIs are percentile bootstrap on the per-run median AUC "
-        r"(10{,}000 resamples, seed 42). $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank vs the "
-        r"static-threshold baseline on runs where both scorers produced a non-degenerate AUC, Holm-corrected "
-        r"across the 4 detectors. $^*$Significant at $\alpha=0.05$.",
-        r"\end{table}",
+        r"\raggedright\footnotesize `Full' = all scored runs (719 for detectors; 299 for the baseline, which "
+        r"produces a constant score, and is therefore excluded rather than reported at its literal AUC=0.5, on "
+        r"the other 420 -- see main text). `$n=299$ paired' = each detector's "
+        r"own median AUC computed on exactly the same 299 runs the confirmatory test uses, directly comparable to "
+        r"the baseline's 0.840. 95\% CIs are percentile bootstrap on the per-run median AUC (10{,}000 resamples, "
+        r"seed 42), computed on the full sample. $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank vs the "
+        r"static-threshold baseline on the 299-run paired subset, Holm-corrected across the 4 detectors. "
+        r"$^*$Significant at $\alpha=0.05$.",
+        r"\end{table*}",
     ]
     (TABLE_DIR / "table9_component5.tex").write_text("\n".join(lines))
     print("  Written: table9_component5.tex")

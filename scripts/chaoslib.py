@@ -62,10 +62,13 @@ DATA_DIR = Path(_data_dir_env)
 WRK2_TEMPLATE = PROJECT_ROOT / "load-generator" / "wrk2-job.yaml.tpl"
 
 # Overridden per-account: export CHAOS_ECR_REPO after build-wrk2-image.sh
-# pushes to the target account/region (default = original us-east-1 image).
+# pushes to the target account/region. The placeholder default below does
+# not resolve to any real account and is intentionally non-functional --
+# any run that depends on it without exporting CHAOS_ECR_REPO first will
+# fail at the ECR pull, not silently pull a stale/wrong account's image.
 ECR_REPO = os.environ.get(
     "CHAOS_ECR_REPO",
-    "886604922358.dkr.ecr.us-east-1.amazonaws.com/chaos-benchmark/wrk2",
+    "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/chaos-benchmark/wrk2",
 )
 NAMESPACE = "social-network"
 

@@ -30,7 +30,7 @@ Every component's exact statistical methodology (metrics, tests, corrections, an
 
 **Component 4**: none of the three LLMs beat chance (0.5) at predicting fault impact from topology alone (Claude 0.469, Mistral 0.519, Llama 3 a degenerate constant predictor mechanically pinned at 0.5). A practitioner heuristic modestly beats a trivial always-predict-majority-class baseline (0.575 vs 0.5), but no pairwise significance test is registered for this component.
 
-**Component 5**: Isolation Forest (median AUC-ROC 0.883) and a reconstruction autoencoder (0.827) significantly beat a static-threshold baseline (0.840, paired Wilcoxon, Holm-corrected p<0.001 both); Deep SVDD (0.805) does not differ significantly; EWMA (0.582) is significantly worse than the baseline.
+**Component 5**: on the 299-run paired subset used for the confirmatory test, Isolation Forest (median AUC-ROC 0.884) and a reconstruction autoencoder (0.849) significantly beat a static-threshold baseline (0.840, paired Wilcoxon, Holm-corrected p<0.001 both); Deep SVDD (0.811) does not differ significantly; EWMA (0.618) is significantly worse than the baseline. (Full-719-run descriptive medians, not directly comparable to the baseline: 0.883 / 0.827 / 0.805 / 0.582 respectively.)
 
 The throughline across Components 3-5: LLM-driven approaches do not clearly beat simpler baselines anywhere in this study (random selection, a majority-class baseline, and a static threshold rule, respectively) -- the two detectors that do beat their baseline (Isolation Forest, autoencoder) are not LLM-based. This is reported as a finding, not smoothed over.
 
@@ -86,7 +86,7 @@ chaos-benchmark/
 
 ## Reproducing the Analysis (no cluster required)
 
-All raw data is already collected and committed under `data-v2/`. To regenerate every table, figure, and statistical result from scratch:
+Raw data is not committed to this repository (`data-v2/` is gitignored; the JSON/timeseries files are large per-run outputs, not source). It is archived separately on Zenodo (see Data Availability below) -- download and extract it to `data-v2/` before running the commands below. To regenerate every table, figure, and statistical result from scratch:
 
 ```bash
 cd chaos-benchmark
@@ -145,4 +145,4 @@ Full detail, including every mid-study amendment and why it was made, is in `ana
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+CC BY 4.0. See [LICENSE](LICENSE) for details.

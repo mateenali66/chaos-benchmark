@@ -1,4 +1,4 @@
-\begin{table}[ht]
+\begin{table*}[ht]
 \centering
 \caption{Confirmatory statistical comparison of throughput: Chaos Mesh vs LitmusChaos}
 \label{tab:stats}
@@ -22,5 +22,5 @@ A2 & gRPC Unavailable & 119.8 & 119.8 & +0.0 & 472 & 1.000 & +0.049 (negligible)
 \hline
 \end{tabular}
 \vspace{2mm}
-\raggedright\footnotesize Two-sided Mann-Whitney U test (unpaired, $n=30$ per arm). $p$-values are Holm-Bonferroni corrected within the throughput (primary) metric family, $m=12$. $^*$Significant at $\alpha=0.05$ after correction. Cliff's $d$: $|d|<0.147$ negligible, $<0.33$ small, $<0.474$ medium, $\geq0.474$ large. 95\% CIs for $d$ (BCa bootstrap, 10{,}000 resamples; percentile fallback where BCa is degenerate under perfect separation) are in \texttt{analysis/results/statistical\_tests.csv}, omitted here for space.
-\end{table}
+\raggedright\footnotesize Two-sided Mann-Whitney U test (unpaired, $n=30$ per arm). $p$-values are Holm-Bonferroni corrected within the throughput (primary) metric family, $m=12$. $^*$Significant at $\alpha=0.05$ after correction. Cliff's $d$: $|d|<0.147$ negligible, $<0.33$ small, $<0.474$ medium, $\geq0.474$ large. 95\% CIs for $d$ (BCa bootstrap, 10{,}000 resamples; percentile fallback where BCa is degenerate under perfect separation) are in the reproducibility package (Section~\ref{sec:conclusions}), omitted here for space.
+\end{table*}

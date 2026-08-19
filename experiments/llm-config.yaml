@@ -2,7 +2,7 @@
 # generation). Frozen BEFORE any campaign or generation run per the
 # pre-registration (analysis/PREREGISTRATION.md); do not edit after data
 # collection begins. Verified invokable in ca-central-1 on 2026-08-15
-# (account 759890811490, one-token converse test per model).
+# (staging account, one-token converse test per model).
 
 region: ca-central-1
 
