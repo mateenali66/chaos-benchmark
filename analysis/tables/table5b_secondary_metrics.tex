@@ -1,0 +1,27 @@
+\begin{table*}[ht]
+\centering
+\caption{Confirmatory statistical comparison of the two secondary metric families: p99 latency and error rate}
+\label{tab:stats-secondary}
+\small
+\begin{tabular}{clrrlrrl}
+\hline
+\multicolumn{2}{c}{} & \multicolumn{3}{c}{\textbf{p99 latency (ms)}} & \multicolumn{3}{c}{\textbf{Error rate}} \\
+\textbf{ID} & \textbf{Scenario} & \textbf{CM} & \textbf{LT} & \textbf{$p_{\mathrm{Holm}}$} & \textbf{CM} & \textbf{LT} & \textbf{$p_{\mathrm{Holm}}$} \\
+\hline
+P1 & Pod Kill & 245 & 251 & 1.000 & 0.000 & 0.000 & $<$0.001$^*$ \\
+P2 & Container Kill & 1190 & 78000 & $<$0.001$^*$ & 0.002 & 0.724 & $<$0.001$^*$ \\
+P3 & Pod Failure & 69000 & 248 & $<$0.001$^*$ & 0.014 & 0.001 & $<$0.001$^*$ \\
+N1 & Latency 50ms & 247 & 245 & 1.000 & 0.000 & 0.000 & 1.000 \\
+N2 & Latency 100ms & 1020 & 642 & $<$0.001$^*$ & 0.000 & 0.000 & 1.000 \\
+N3 & Latency 300ms & 2565 & 1318 & $<$0.001$^*$ & 0.000 & 0.000 & 1.000 \\
+N4 & Packet Loss 5\% & 270 & 292 & 0.801 & 0.000 & 0.000 & 0.002$^*$ \\
+N5 & Network Partition & 45880 & 247 & $<$0.001$^*$ & 0.009 & 0.000 & $<$0.001$^*$ \\
+R1 & CPU Stress 80\% & 250 & 264 & 0.801 & 0.000 & 0.000 & 1.000 \\
+R2 & Memory Pressure 80\% & 250 & 263 & 0.801 & 0.000 & 0.000 & 0.804 \\
+A1 & HTTP Abort 503 & 98 & 29299 & $<$0.001$^*$ & 0.232 & 0.047 & $<$0.001$^*$ \\
+A2 & gRPC Unavailable & 5960 & 319 & $<$0.001$^*$ & 0.002 & 0.000 & $<$0.001$^*$ \\
+\hline
+\end{tabular}
+\vspace{2mm}
+\raggedright\footnotesize Two-sided Mann-Whitney U test (unpaired, $n=30$ per arm) for each secondary family, Holm-Bonferroni corrected within its own family ($m=12$), independent of the throughput (primary) family's correction in Table~\ref{tab:stats}. $^*$Significant at $\alpha=0.05$ after correction. 7 of 12 scenarios show significant p99 latency differences despite only 2 of 12 showing a significant throughput difference (Table~\ref{tab:stats}); 7 of 12 show significant error-rate differences. Effect sizes and CIs for both families are in the reproducibility package (Section~\ref{sec:conclusions}).
+\end{table*}
