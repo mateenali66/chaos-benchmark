@@ -30,9 +30,16 @@ violated: an unmeasurable signal cannot be discovered.
 
 Usage:
     python3 analysis/component3_analyze.py
+    python3 analysis/component3_analyze.py --exclude-signal recovery_over_60s \
+        --out analysis/results/component3-scoring-no-recovery.json
+
+--exclude-signal drops one signal from the weakness classes (post hoc
+sensitivity analysis, not in the plan). It writes only the JSON given by
+--out and leaves the default outputs untouched.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from collections import defaultdict
@@ -69,7 +76,7 @@ def load_campaign_injections(arm: str, campaign: int) -> list[dict] | None:
     return injections
 
 
-def discovery_curve(injections: list[dict]) -> list[int]:
+def discovery_curve(injections: list[dict], fields: dict[str, str] = SIGNAL_FIELDS) -> list[int]:
     """Returns cumulative unique-weakness-class counts, one value per
     injection index 1..K, in the order injections actually ran."""
     seen: set[tuple[str, str]] = set()
@@ -78,7 +85,7 @@ def discovery_curve(injections: list[dict]) -> list[int]:
         ws = rec.get("weakness_signals") or {}
         target = rec["metadata"]["target_service"]
         if rec.get("error") is None:  # errored injections contribute no signal
-            for field, signal_name in SIGNAL_FIELDS.items():
+            for field, signal_name in fields.items():
                 if ws.get(field) is True:  # explicit True; None/False both non-events
                     seen.add((signal_name, target))
         curve.append(len(seen))
@@ -140,6 +147,15 @@ def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> tuple[list[fl
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Component 3 discovery-curve analysis")
+    parser.add_argument("--exclude-signal", choices=sorted(SIGNAL_FIELDS),
+                        help="drop this signal from the weakness classes (post hoc sensitivity analysis)")
+    parser.add_argument("--out", type=Path, help="output JSON (required with --exclude-signal)")
+    args = parser.parse_args()
+    if args.exclude_signal and not args.out:
+        parser.error("--out is required with --exclude-signal")
+    fields = {k: v for k, v in SIGNAL_FIELDS.items() if k != args.exclude_signal}
+
     per_campaign_rows = []
     auc_by_arm: dict[str, list[float]] = defaultdict(list)
 
@@ -149,7 +165,7 @@ def main():
             if injections is None:
                 print(f"  WARNING: {arm}/campaign-{campaign} incomplete, skipping")
                 continue
-            curve = discovery_curve(injections)
+            curve = discovery_curve(injections, fields)
             auc = trapezoidal_auc(curve)
             total_at_k = curve[-1]
             first_idx = next((i + 1 for i, c in enumerate(curve) if c > 0), None)
@@ -206,14 +222,15 @@ def main():
         else:
             print("  p >= 0.05: no pairwise tests run (per PREREGISTRATION.md's confirmatory analysis #5).")
 
-    # Write outputs
-    with open(OUTPUT_DIR / "component3_per_campaign.csv", "w", newline="") as f:
-        fieldnames = ["arm", "campaign", "auc", "total_unique_at_k10", "injections_to_first_weakness"]
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in per_campaign_rows:
-            writer.writerow({k: row[k] for k in fieldnames})
-    print(f"\nWritten: {OUTPUT_DIR / 'component3_per_campaign.csv'}")
+    # Write outputs. The sensitivity run writes only its own JSON.
+    if not args.exclude_signal:
+        with open(OUTPUT_DIR / "component3_per_campaign.csv", "w", newline="") as f:
+            fieldnames = ["arm", "campaign", "auc", "total_unique_at_k10", "injections_to_first_weakness"]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in per_campaign_rows:
+                writer.writerow({k: row[k] for k in fieldnames})
+        print(f"\nWritten: {OUTPUT_DIR / 'component3_per_campaign.csv'}")
 
     output = {
         "per_campaign": per_campaign_rows,
@@ -227,7 +244,9 @@ def main():
         "kruskal_wallis": kw_result,
         "pairwise_mann_whitney": pairwise,
     }
-    out_path = OUTPUT_DIR / "component3-scoring.json"
+    if args.exclude_signal:
+        output = {"post_hoc": True, "excluded_signal": args.exclude_signal, **output}
+    out_path = args.out or OUTPUT_DIR / "component3-scoring.json"
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2, default=str)
     print(f"Written: {out_path}")
