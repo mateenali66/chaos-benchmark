@@ -1,0 +1,71 @@
+{
+  "source": "analysis/results/component5-scoring.json",
+  "post_hoc": true,
+  "sensitivity_degenerate_as_0_5": {
+    "degenerate_baseline_scored_as": 0.5,
+    "results": [
+      {
+        "detector": "isolation_forest",
+        "n": 719,
+        "median_auc_detector": 0.8834459459459459,
+        "median_auc_baseline": 0.5,
+        "median_paired_difference": 0.35096153846153844,
+        "p_value": 1.4107218069621295e-103,
+        "p_adjusted_holm": 5.642887227848518e-103
+      },
+      {
+        "detector": "autoencoder",
+        "n": 719,
+        "median_auc_detector": 0.8265765765765765,
+        "median_auc_baseline": 0.5,
+        "median_paired_difference": 0.3081140350877193,
+        "p_value": 9.643369560501799e-90,
+        "p_adjusted_holm": 2.8930108681505395e-89
+      },
+      {
+        "detector": "deep_svdd",
+        "n": 719,
+        "median_auc_detector": 0.805372807017544,
+        "median_auc_baseline": 0.5,
+        "median_paired_difference": 0.1779279279279279,
+        "p_value": 2.683039526371817e-66,
+        "p_adjusted_holm": 5.366079052743634e-66
+      },
+      {
+        "detector": "ewma",
+        "n": 719,
+        "median_auc_detector": 0.5822222222222222,
+        "median_auc_baseline": 0.5,
+        "median_paired_difference": 0.03888888888888886,
+        "p_value": 0.35712323517040523,
+        "p_adjusted_holm": 0.35712323517040523
+      }
+    ]
+  },
+  "detector_medians_by_baseline_degeneracy": {
+    "n_degenerate": 420,
+    "n_non_degenerate": 299,
+    "results": [
+      {
+        "detector": "isolation_forest",
+        "median_auc_degenerate_baseline_runs": 0.8834459459459458,
+        "median_auc_non_degenerate_baseline_runs": 0.8843243243243243
+      },
+      {
+        "detector": "autoencoder",
+        "median_auc_degenerate_baseline_runs": 0.8222222222222222,
+        "median_auc_non_degenerate_baseline_runs": 0.848536036036036
+      },
+      {
+        "detector": "deep_svdd",
+        "median_auc_degenerate_baseline_runs": 0.7997222222222222,
+        "median_auc_non_degenerate_baseline_runs": 0.8108108108108107
+      },
+      {
+        "detector": "ewma",
+        "median_auc_degenerate_baseline_runs": 0.5690728228228228,
+        "median_auc_non_degenerate_baseline_runs": 0.6177777777777778
+      }
+    ]
+  }
+}
