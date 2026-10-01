@@ -365,7 +365,8 @@ def collect_infra_metrics(start_ts: float, end_ts: float, namespace: str = NAMES
 
 
 def collect_run_timeseries(window_start: float, window_end: float,
-                            namespace: str = NAMESPACE, step: str = TIMESERIES_STEP) -> dict:
+                            namespace: str = namespace_for_slot(CHAOS_SLOT),
+                            step: str = TIMESERIES_STEP) -> dict:
     """Range-query every metric in TIMESERIES_QUERIES over the run window.
 
     Default step is 5 s. Never raises: a failed query is recorded with an
@@ -388,7 +389,7 @@ def collect_run_timeseries(window_start: float, window_end: float,
 
 def write_timeseries_sidecar(output_file: Path, window_start: float, window_end: float,
                               fault_start: float | None, fault_end: float | None,
-                              prom_available: bool, namespace: str = NAMESPACE,
+                              prom_available: bool, namespace: str = namespace_for_slot(CHAOS_SLOT),
                               step: str = TIMESERIES_STEP) -> Path | None:
     """Write the gzipped Prometheus timeseries sidecar next to a run's JSON.
 
