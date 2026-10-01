@@ -61,5 +61,3 @@ screenshots/
 # Terraform variables (contains AWS account IDs)
 terraform/terraform.tfvars
 
-# Local notes
-CLAUDE.md
