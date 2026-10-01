@@ -270,6 +270,7 @@ def table9_component5(data: dict):
         r"\begin{table*}[ht]", r"\centering",
         r"\caption{Component 5: detector AUC-ROC vs the static-threshold baseline}",
         r"\label{tab:component5}", r"\small",
+        r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{lrrrrl}", r"\hline",
         r"\textbf{Detector} & \textbf{$n$ (full)} & \textbf{Median AUC (full)} & \textbf{Median AUC ($n=299$ paired)} & \textbf{95\% CI (full)} & \textbf{vs Baseline ($p_{\mathrm{Holm}}$)} \\",
         r"\hline",
@@ -290,7 +291,7 @@ def table9_component5(data: dict):
             vs_base = f"{c['p_adjusted_holm']:.2e}{sig}" if c.get("p_adjusted_holm") is not None else "--"
         lines.append(f"{DETECTOR_LABELS[name]} & {n} & {med} & {paired_med} & {ci} & {vs_base} \\\\")
     lines += [
-        r"\hline", r"\end{tabular}", r"\vspace{2mm}",
+        r"\hline", r"\end{tabular}%", r"}", r"\vspace{2mm}",
         r"\raggedright\footnotesize `Full' = all scored runs (719 for detectors; 299 for the baseline, which "
         r"produces a constant score, and is therefore excluded rather than reported at its literal AUC=0.5, on "
         r"the other 420 -- see main text). `$n=299$ paired' = each detector's "
@@ -312,21 +313,35 @@ def fig12_component5_bars(data: dict):
     lo = [summary[n].get("ci_95_lo") for n in names]
     hi = [summary[n].get("ci_95_hi") for n in names]
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    x = np.arange(len(names))
-    yerr = np.array([[m - l if l is not None else 0 for m, l in zip(medians, lo)],
-                      [h - m if h is not None else 0 for m, h in zip(medians, hi)]])
-    colors = ["#FF9800" if n == "static_threshold" else "#2196F3" for n in names]
-    ax.bar(x, medians, color=colors, yerr=yerr, capsize=4, error_kw={"linewidth": 0.9})
-    ax.axhline(0.5, color="gray", linestyle="--", linewidth=1, label="Chance (0.5)")
-    ax.set_xticks(x)
-    ax.set_xticklabels([DETECTOR_LABELS[n] for n in names], rotation=30, ha="right")
-    ax.set_ylabel("Median AUC-ROC (per-run)")
-    ax.set_title("Component 5: fault-window detection, ML detectors vs static-threshold baseline")
-    ax.set_ylim(0, 1)
-    ax.legend(loc="lower right")
-    fig.tight_layout()
-    save_fig(fig, "fig12_component5_auc")
+    # One cas-dc column (\columnwidth = 238.25pt = 3.31in): figsize is set so
+    # the tight-bbox PDF is ~3.3in wide and the point sizes here are the
+    # final printed sizes. rc_context keeps fig10/fig11's module-wide style.
+    with plt.rc_context({"font.size": 7.5, "axes.labelsize": 8, "xtick.labelsize": 7.5,
+                         "ytick.labelsize": 7.5, "axes.linewidth": 0.8}):
+        fig, ax = plt.subplots(figsize=(3.25, 2.6))
+        x = np.arange(len(names))
+        yerr = np.array([[m - l if l is not None else 0 for m, l in zip(medians, lo)],
+                          [h - m if h is not None else 0 for m, h in zip(medians, hi)]])
+        colors = ["#FF9800" if n == "static_threshold" else "#2196F3" for n in names]
+        ax.bar(x, medians, color=colors, yerr=yerr, capsize=4, error_kw={"linewidth": 0.9})
+        ax.axhline(0.5, color="gray", linestyle="--", linewidth=1)
+        # Direct label just outside the right spine instead of a legend: every
+        # bar crosses 0.5, so there is no bar-free spot on the line inside the
+        # axes, and the old loc="lower right" legend covered the bottom of the
+        # orange static-threshold bar (found in a 2026-09-30 QA pass).
+        ax.annotate("Chance\n(0.5)", xy=(1.0, 0.5), xycoords=("axes fraction", "data"),
+                    xytext=(3, 0), textcoords="offset points", ha="left", va="center",
+                    fontsize=7, color="dimgray", linespacing=1.0, annotation_clip=False)
+        ax.set_xticks(x)
+        ax.set_xticklabels([DETECTOR_LABELS[n].replace(" (baseline)", "\n(baseline)") for n in names],
+                           rotation=30, ha="right", rotation_mode="anchor", linespacing=1.0)
+        ax.set_ylabel("Median AUC-ROC (per-run)")
+        # No in-figure title: the LaTeX caption ("Detector AUC-ROC vs. the
+        # static-threshold baseline ...") already carries it.
+        ax.set_ylim(0, 1)
+        ax.set_axisbelow(True)  # grid behind the bars, not drawn through them
+        fig.tight_layout()
+        save_fig(fig, "fig12_component5_auc")
 
 
 def main():

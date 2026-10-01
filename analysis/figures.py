@@ -115,9 +115,45 @@ def save_fig(fig, name):
 # Figure 3: Throughput box plots by scenario
 # ---------------------------------------------------------------------------
 
+# Full-page-width (cas-dc \textwidth = 494.5pt = 6.87in) print style for
+# fig3/fig4, which the manuscript places in figure* environments. figsize is
+# chosen so the tight-bbox PDF comes out ~6.87in wide, i.e. LaTeX scales it by
+# ~1.0 and these point sizes are the final printed sizes. Applied via
+# rc_context so the other figures in this module keep the module-wide style.
+FULL_WIDTH_RC = {
+    "font.size": 8,
+    "axes.labelsize": 9,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "legend.fontsize": 8,
+    "axes.linewidth": 0.8,
+}
+FULL_WIDTH_FIGSIZE = (6.9, 3.4)
+
+
+def _legend_above(ax, handles, y_offset_pt):
+    """Horizontal legend outside the axes, centred above the top spine.
+
+    y_offset_pt lifts it clear of anything drawn directly above the spine
+    (fig3's category labels). Outside the axes it cannot cover data: the
+    2026-08-18 loc="upper right" legend hid fig3's gRPC Unavailable boxes and
+    the top of LitmusChaos's HTTP Abort 503 box (found in a 2026-09-30 QA pass).
+    """
+    import matplotlib.transforms as mtransforms
+    offset = mtransforms.offset_copy(ax.transAxes, fig=ax.figure, x=0, y=y_offset_pt, units="points")
+    ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0),
+              bbox_transform=offset, ncol=len(handles), frameon=False,
+              borderaxespad=0.0, handlelength=1.6, columnspacing=1.5)
+
+
 def fig3_throughput_boxplots(df):
     """Side-by-side box plots of throughput for each scenario, grouped by tool."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    with plt.rc_context(FULL_WIDTH_RC):
+        _fig3_throughput_boxplots(df)
+
+
+def _fig3_throughput_boxplots(df):
+    fig, ax = plt.subplots(figsize=FULL_WIDTH_FIGSIZE)
 
     scenario_labels = [SCENARIO_NAMES[s] for s in SCENARIO_ORDER]
     positions = np.arange(len(SCENARIO_ORDER))
@@ -153,24 +189,32 @@ def fig3_throughput_boxplots(df):
         # instead, same pattern already used correctly in fig7 below.
 
     ax.set_xticks(positions)
-    ax.set_xticklabels(scenario_labels, rotation=45, ha="right", fontsize=8)
+    ax.set_xticklabels(scenario_labels, rotation=45, ha="right", rotation_mode="anchor")
     ax.set_ylabel("Throughput (requests/second)")
-    ax.set_title("Throughput Comparison: Chaos Mesh vs LitmusChaos")
+    ax.set_axisbelow(True)  # grid behind the boxes, not drawn through them
+    # No in-figure title: the LaTeX caption ("Throughput comparison across
+    # all 12 fault scenarios") already carries it.
     from matplotlib.patches import Patch
     legend_elements = [Patch(facecolor=TOOL_COLORS[t], alpha=0.7, label=t) for t in ["Chaos Mesh", "LitmusChaos"]]
-    ax.legend(handles=legend_elements, loc="upper right")
 
     # Add category separators
     category_bounds = [0, 3, 8, 10]  # Pod, Network, Resource, Application boundaries
     for b in category_bounds:
         ax.axvline(x=b - 0.5, color="gray", linewidth=0.5, linestyle="--", alpha=0.5)
 
-    # Category labels at bottom
-    cat_positions = [1, 5.5, 8.5, 10.5]
-    cat_names = ["Pod/Container", "Network", "Resource", "App"]
+    # Category labels just ABOVE the top spine (x in data, y in axes
+    # fraction). They used to sit at ylim[0] - 5 in data units, which printed
+    # them over the rotated x tick labels. Inside the axes is not an option:
+    # the boxes reach ~120 rps, i.e. the top of the plot, in every category.
+    # Network (n1-n5 at positions 3-7) is centred at 5, not the old 5.5.
+    cat_positions = [1, 5, 8.5, 10.5]
+    cat_names = ["Pod/Container", "Network", "Resource", "Application"]
     for pos, name in zip(cat_positions, cat_names):
-        ax.text(pos, ax.get_ylim()[0] - 5, name, ha="center", fontsize=7,
-                fontstyle="italic", color="gray")
+        ax.annotate(name, xy=(pos, 1.0), xycoords=ax.get_xaxis_transform(),
+                    xytext=(0, 2), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=8, fontstyle="italic",
+                    color="dimgray", annotation_clip=False)
+    _legend_above(ax, legend_elements, y_offset_pt=13)
 
     fig.tight_layout()
     save_fig(fig, "fig3_throughput_boxplots")
@@ -193,7 +237,12 @@ def fig4_latency_comparison(df):
     (found in a 2026-08-18 visual QA pass). Log-scale y-axis given the
     multi-order-of-magnitude range across scenarios.
     """
-    fig, ax = plt.subplots(figsize=(12, 5))
+    with plt.rc_context(FULL_WIDTH_RC):
+        _fig4_latency_comparison(df)
+
+
+def _fig4_latency_comparison(df):
+    fig, ax = plt.subplots(figsize=FULL_WIDTH_FIGSIZE)
 
     scenario_labels = [SCENARIO_NAMES[s] for s in SCENARIO_ORDER]
     x = np.arange(len(SCENARIO_ORDER))
@@ -223,11 +272,15 @@ def fig4_latency_comparison(df):
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(scenario_labels, rotation=45, ha="right", fontsize=8)
-    ax.set_ylabel("p99 Latency (ms, log scale)")
-    ax.set_title("p99 Latency Comparison by Fault Scenario (median, IQR)")
+    ax.set_xticklabels(scenario_labels, rotation=45, ha="right", rotation_mode="anchor")
+    # The old title ("p99 Latency Comparison by Fault Scenario (median,
+    # IQR)") duplicated the LaTeX caption except for "median, IQR", which the
+    # caption does not say, so that part moves into the y label.
+    ax.set_ylabel("p99 latency (ms, log scale)\nbar = median, error bar = IQR")
     ax.set_yscale("log")
-    ax.legend(loc="upper right")
+    ax.set_axisbelow(True)  # grid behind the bars, not drawn through them
+    handles, _ = ax.get_legend_handles_labels()
+    _legend_above(ax, handles, y_offset_pt=4)
 
     fig.tight_layout()
     save_fig(fig, "fig4_latency_p99")
@@ -280,15 +333,71 @@ def fig5_error_rates(df):
 # Figure 6: CPU and Memory overhead heatmap
 # ---------------------------------------------------------------------------
 
-def fig6_overhead_heatmap(df):
-    """Heatmap showing CPU spike and memory spike by scenario and tool."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+def _compact_thousands(v):
+    """11521.3 -> '11.5k', 2202.4 -> '2.2k', 859.2 -> '859'."""
+    return f"{v / 1000:.1f}k" if abs(v) >= 1000 else f"{v:.0f}"
 
-    for ax_idx, (metric, title, fmt) in enumerate([
-        ("CPU Spike (%)", "CPU Spike During Fault (%)", ".0f"),
-        ("Memory Spike (MB)", "Memory Spike During Fault (MB)", ".1f"),
+
+def _relative_luminance(rgba):
+    """WCAG 2.x relative luminance of an sRGB(A) colour in [0, 1]."""
+    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgba[:3]]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _annotation_color(rgba):
+    """White or black, whichever has the higher WCAG contrast ratio against
+    the cell colour. The crossover is at luminance ~0.179, so every cell gets
+    at least ~4.6:1 (seaborn's own 0.408 cut-off would put white text on the
+    mid-orange cells at ~2.3:1)."""
+    lum = _relative_luminance(rgba)
+    contrast_white = 1.05 / (lum + 0.05)
+    contrast_black = (lum + 0.05) / 0.05
+    return "white" if contrast_white > contrast_black else "black"
+
+
+# Supplementary Figure S2 sits in ONE cas-dc column (\columnwidth = 238.25pt
+# = 3.31in), so the figure is drawn at that width and the point sizes below
+# are the final printed sizes.
+FIG6_RC = {
+    "font.size": 7,
+    "axes.titlesize": 8,
+    "axes.labelsize": 7,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7,
+}
+
+
+def fig6_overhead_heatmap(df):
+    """Heatmap showing CPU spike and memory spike by scenario and tool.
+
+    Laid out for one column: scenarios are rows and the two tools are columns
+    (the transpose of the old 14in-wide two-panel layout, whose 12-column
+    rows would leave each cell ~0.18in wide at 3.3in). Scenario order (top to
+    bottom) and tool order (left to right) are unchanged, as are the per-cell
+    means, the YlOrRd colormap and each panel's own colour scale. CPU cells
+    are annotated in thousands ("11.5k"): the old ".0f" five-digit values
+    (11521, 11563, 10557, ...) overflowed their cells. Annotation colour is
+    chosen per cell by luminance, because seaborn's automatic choice was
+    printing black on the darkest red cells.
+    """
+    with plt.rc_context(FIG6_RC):
+        _fig6_overhead_heatmap(df)
+
+
+def _fig6_overhead_heatmap(df):
+    fig, axes = plt.subplots(
+        2, 2, figsize=(3.15, 2.85), layout="constrained",
+        gridspec_kw={"height_ratios": [1, 0.045]},
+    )
+    fig.get_layout_engine().set(w_pad=0.02, h_pad=0.03, wspace=0.06, hspace=0.02)
+
+    tool_ticklabels = ["Chaos\nMesh", "Litmus\nChaos"]
+    for ax_idx, (metric, title, cbar_label, fmt) in enumerate([
+        ("CPU Spike (%)", "CPU spike", "Mean spike (%)\nk = thousand", _compact_thousands),
+        ("Memory Spike (MB)", "Memory spike", "Mean spike (MB)", lambda v: f"{v:.1f}"),
     ]):
-        ax = axes[ax_idx]
+        ax = axes[0, ax_idx]
+        cax = axes[1, ax_idx]
         pivot_data = []
         for tool in ["Chaos Mesh", "LitmusChaos"]:
             tool_row = []
@@ -303,19 +412,48 @@ def fig6_overhead_heatmap(df):
             columns=[SCENARIO_NAMES[s] for s in SCENARIO_ORDER],
         )
 
+        # Scenarios as rows, tools as columns (see docstring).
+        plot_df = pivot_df.T
+
         sns.heatmap(
-            pivot_df,
+            plot_df,
             ax=ax,
-            annot=True,
-            fmt=fmt,
+            cbar_ax=cax,
+            annot=False,
             cmap="YlOrRd",
             linewidths=0.5,
-            cbar_kws={"shrink": 0.8},
+            cbar_kws={"orientation": "horizontal"},
+            yticklabels=(ax_idx == 0),
         )
-        ax.set_title(title, fontsize=10)
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right", fontsize=7)
+        # Annotate by hand so the text colour can follow the cell colour.
+        mesh = ax.collections[0]
+        cmap, norm = mesh.get_cmap(), mesh.norm
+        for r, scenario in enumerate(plot_df.index):
+            for c, tool in enumerate(plot_df.columns):
+                v = plot_df.loc[scenario, tool]
+                ax.text(c + 0.5, r + 0.5, fmt(v), ha="center", va="center",
+                        fontsize=7, color=_annotation_color(cmap(norm(v))))
 
-    fig.tight_layout()
+        ax.set_title(title, pad=3)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.set_xticklabels(tool_ticklabels, rotation=0, linespacing=1.0)
+        ax.tick_params(axis="both", length=0, pad=2)
+        # The module-wide axes.grid=True used to draw grid lines through the
+        # middle of every cell (at the tick positions).
+        ax.grid(False)
+        if ax_idx == 0:
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+
+        cax.set_xlabel(cbar_label, labelpad=2, linespacing=1.1)
+        cax.tick_params(length=2, pad=1.5)
+        if ax_idx == 0:
+            cax.xaxis.set_major_formatter(mticker.FuncFormatter(
+                lambda v, _pos: "0" if v == 0 else _compact_thousands(v).replace(".0k", "k")))
+            cax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=4))
+        else:
+            cax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=4, integer=True))
+
     save_fig(fig, "fig6_overhead_heatmap")
 
 
