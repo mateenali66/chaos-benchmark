@@ -14,7 +14,7 @@ The statistical plan, every dated amendment and the reasons for each are in [`an
 | 2 | Overhead decomposition | Chaos Mesh only. Mean CPU and memory per pod in the application namespace (application pods and load generator, not the tool's own pods) with no tool, with the tool idle, and during a fault, 10 runs each. |
 | 3 | Fault selection | 5 strategies (random, coverage heuristic, 3 LLMs) x 10 campaigns x 10 injections (500 injections) from a 36-candidate fault space. |
 | 4 | Hypothesis generation | 3 LLMs predict each candidate's throughput impact from topology and baseline telemetry only (540 samples), scored against Component 3's measured outcomes. |
-| 5 | Impact detection | EWMA, Isolation Forest, autoencoder and Deep SVDD, trained per run on the baseline phase of each Component 1 run's telemetry, against a static-threshold baseline. |
+| 5 | Impact detection | EWMA, Isolation Forest, autoencoder and Deep SVDD, trained per run on the baseline phase of each run's telemetry, against a static-threshold baseline. Reported on the 240 slot-0 Component 1 runs. |
 
 ## Key results
 
@@ -22,11 +22,11 @@ The numbers below come from `analysis/results/`.
 
 - In Component 1, 2 of 12 scenarios differ in throughput between tools after Holm correction: HTTP Abort 503 (median 77.5 rps Chaos Mesh vs 115.6 rps LitmusChaos, Cliff's delta -1.00) and Container Kill (119.6 vs 103.8 rps, delta +1.00). The other 10 do not.
 - In Component 2, with Chaos Mesh installed and idle, application CPU and memory per pod do not change measurably (both 95% CIs include zero). During a fault they rise by 0.0093 cores and 2.41 MB per pod (both CIs exclude zero). LitmusChaos is not reported because it runs its runner and fault pods in the application namespace.
-- In Component 3, the Kruskal-Wallis test across the 5 arms gives H = 24.39, p = 0.00007. The coverage heuristic finds fewer weakness classes than each of the other four arms (Holm-corrected p < 0.01). Random and the three LLM arms do not differ from each other.
+- In Component 3, the Kruskal-Wallis test across the 5 arms gives H = 24.39, p = 0.00007. The coverage heuristic finds fewer weakness classes than each of the other four arms (Holm-corrected p < 0.01). Random and the three LLM arms do not differ from each other. Without the recovery signal, which fires on 467 of 500 injections, the result is the same (post hoc).
 - In Component 4, no LLM beats chance (balanced accuracy 0.5). Claude scores 0.469, Mistral 0.519 and Llama 0.500, because Llama predicts "degrade" for every candidate. The practitioner heuristic scores 0.575 against 0.5 for an always-majority baseline. No significance test is registered for this component.
-- In Component 5, on the 299 runs where the static-threshold baseline is not constant, Isolation Forest (median AUC-ROC 0.884) and the autoencoder (0.849) beat the baseline (0.840), Deep SVDD (0.811) does not differ, and EWMA (0.618) is worse (paired Wilcoxon, Holm-corrected). Medians over all 719 scored runs are 0.883, 0.827, 0.805 and 0.582.
+- Component 5 uses only the 240 slot-0 runs (scenarios P1, P2, P3, N1), because the other runs' sidecars hold slot 0's telemetry (see the erratum). On the 96 of those runs where the static-threshold baseline is not constant, Isolation Forest (median AUC-ROC 0.872), the autoencoder (0.826) and Deep SVDD (0.810) beat the baseline (0.808), and EWMA (0.636) is worse (paired Wilcoxon, Holm-corrected). Medians over all 240 runs are 0.871, 0.821, 0.811 and 0.599.
 
-In Components 3 to 5, the LLM approaches do not beat the simpler baselines (random selection, a majority-class rule, a static threshold). The two detectors that beat their baseline are not LLM-based.
+In Components 3 to 5, the LLM approaches do not beat the simpler baselines (random selection, a majority-class rule, a static threshold). The three detectors that beat their baseline are not LLM-based.
 
 ## Setup
 
@@ -36,7 +36,7 @@ In Components 3 to 5, the LLM approaches do not beat the simpler baselines (rand
 - The application is DeathStarBench Social Network with the resource override in `helm/dsb-values.yaml`, monitored with kube-prometheus-stack and Jaeger. [wrk2](https://github.com/giltene/wrk2) offers 120 rps.
 - Every run starts with an application-state reset (`scripts/reset-app-state.sh`) and a 120 s warm-up that is excluded from measurement. Phase durations are constants in `scripts/chaoslib.py`.
 - `experiments/scenarios.yaml` lists Component 1's 12 scenarios. `experiments/fault-space.yaml` lists the 36 candidates used by Components 3 and 4 (12 fault templates x 3 target services).
-- The LLM arms call Amazon Bedrock directly. Model IDs, temperatures and token limits are in `experiments/llm-config.yaml`, and the prompts are in `scripts/prompts/`.
+- The LLM arms call Amazon Bedrock directly. Model IDs, requested temperatures and token limits are in `experiments/llm-config.yaml` (the Claude model rejects an explicit temperature, see the erratum), and the prompts are in `scripts/prompts/`.
 
 ## Repository layout
 
@@ -46,7 +46,8 @@ analysis/
   analyze.py                  Component 1 tests, effect sizes, robustness views
   component2_analyze.py       Component 2
   component3_analyze.py       Component 3
-  component5_sensitivity.py   Component 5 post hoc sensitivity analysis
+  component5_slot0.py         Component 5 on slot-0 runs (the reported analysis)
+  component5_sensitivity.py   Component 5 post hoc sensitivity analysis (all runs)
   tables.py, figures.py       Component 1 tables and figures
   tables_figures_ml.py        Components 3, 4 and 5 tables and figures
   results/, tables/, figures/ generated outputs
