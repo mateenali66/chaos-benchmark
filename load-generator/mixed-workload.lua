@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- Mixed Workload for Chaos Benchmark (Paper 4)
+-- Mixed workload for the chaos benchmark
 -- Based on DeathStarBench/socialNetwork/wrk2/scripts/social-network/mixed-workload.lua
 -- Ratios: 40% compose_post, 30% read_home_timeline, 20% read_user_timeline, 10% follow_user
 --------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ local function follow_user()
   return wrk.format(method, path, headers, body)
 end
 
--- Paper 4 ratios: 40% compose, 30% read_home, 20% read_user, 10% follow
+-- Request mix: 40% compose, 30% read_home, 20% read_user, 10% follow
 request = function()
   cur_time = math.floor(socket.gettime())
   local compose_post_ratio       = 0.40

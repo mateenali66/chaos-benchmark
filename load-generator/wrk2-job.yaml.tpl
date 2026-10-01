@@ -3,14 +3,9 @@
 # Placeholders: ${JOB_NAME}, ${NAMESPACE}, ${ECR_REPO}, ${WRK_DURATION},
 #               ${WRK_RATE}, ${WRK_THREADS}, ${WRK_CONNECTIONS}
 #
-# The NAMESPACE placeholder defaults to "social-network"
-# (chaoslib.render_wrk2_job's default namespace), so an unmodified /
-# CHAOS_SLOT-unset invocation renders byte-identical YAML to before slot
-# parallelism existed. For slot parallelism it becomes
-# "social-network-<slot>", targeting that slot's isolated copy of
-# nginx-thrift. (Note: this whole header comment is itself substituted by
-# the same naive string-replace as the manifest body -- pre-existing
-# behavior, cosmetic only, harmless.)
+# Rendered by chaoslib.render_wrk2_job with plain string replacement, which
+# also applies to this comment. NAMESPACE is "social-network" for slot 0 and
+# "social-network-<slot>" for slots 1 and 2.
 ################################################################################
 
 apiVersion: batch/v1

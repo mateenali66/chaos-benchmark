@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 ################################################################################
-# Initialize DeathStarBench Social Graph
-# Registers 962 users, follows, and optionally composes posts via socfb-Reed98
-# Requires: kubectl, python3, aiohttp
+# Initialize the DeathStarBench social graph from the socfb-Reed98 dataset:
+# registers 962 users, adds their follow edges and composes posts (--compose).
+# Does nothing if user_id=1 already has timeline data.
+# Requires kubectl and python3. aiohttp is installed into .venv if missing.
+# Env: KUBECONFIG selects the cluster. CHAOS_SLOT (default 0) selects the
+# namespace (see scripts/SLOT_PARALLELISM.md).
 # Usage: ./scripts/init-social-graph.sh
-#
-# Slot parallelism: CHAOS_SLOT env var (default "0") selects which of the
-# cluster's up-to-3 isolated namespaces to initialize. Unset/"0" is the
-# original behavior, byte-for-byte. See scripts/SLOT_PARALLELISM.md.
 ################################################################################
 set -euo pipefail
 
@@ -16,26 +15,19 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DSB_SOCIAL="${PROJECT_ROOT}/DeathStarBench/socialNetwork"
 CHAOS_SLOT="${CHAOS_SLOT:-0}"
 
-# Per-cluster local port: two clusters' resets overlap constantly under the
-# per-rep reset protocol, and a fixed port makes their init port-forwards
-# collide (bench-a baseline rep 6 failure). Derive a stable offset from the
-# active kubeconfig so each cluster gets its own port with no env plumbing.
+# Local port offset derived from a checksum of KUBECONFIG, so resets against
+# different clusters from one machine do not collide on the port-forward.
 PORT_OFFSET=$(( $(printf '%s' "${KUBECONFIG:-default}" | cksum | cut -d' ' -f1) % 500 ))
-# Slot-specific offset stacked on top of PORT_OFFSET (kept in sync with
-# chaoslib.slot_port_offset() / chaoslib.SLOT_PORT_STEP and
-# reset-app-state.sh, same 97-per-slot step), so 3 slots sharing one
-# KUBECONFIG never collide on this port-forward either. Slot 0/unset adds 0
-# (unchanged behavior).
+# Plus 97 per slot (chaoslib.SLOT_PORT_STEP, also used by reset-app-state.sh),
+# so slots sharing one KUBECONFIG do not collide either.
 SLOT_PORT_OFFSET=0
 if [[ -n "${CHAOS_SLOT}" && "${CHAOS_SLOT}" != "0" ]]; then
     SLOT_PORT_OFFSET=$(( CHAOS_SLOT * 97 ))
 fi
 LOCAL_PORT=$(( 28080 + PORT_OFFSET + SLOT_PORT_OFFSET ))
 
-# Namespace convention for slot parallelism (slot 0/unset = default
-# namespace; slot N = "social-network-N"). Kept in sync with
-# chaoslib.namespace_for_slot() and reset-app-state.sh -- if you change
-# this logic, change it in all three places.
+# Namespace for this slot. Keep in sync with chaoslib.namespace_for_slot() and
+# reset-app-state.sh.
 if [[ -z "${CHAOS_SLOT}" || "${CHAOS_SLOT}" == "0" ]]; then
     NAMESPACE="social-network"
 else
@@ -107,7 +99,7 @@ if [[ -n "${RESPONSE}" && "${RESPONSE}" != "[]" && "${RESPONSE}" != *"error"* ]]
     exit 0
 fi
 
-# Kill the test port-forward; init script will use the same port
+# Stop the test port-forward. The initialization below reuses the same port.
 kill "${PF_PID}" 2>/dev/null || true
 wait "${PF_PID}" 2>/dev/null || true
 sleep 1

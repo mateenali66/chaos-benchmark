@@ -1,28 +1,27 @@
 #!/usr/bin/env -S python3 -u
 """
-Infra Watchdog
-Polls a single EKS cluster (by kubeconfig context) every --interval seconds
-and flags conditions that would silently corrupt a chaos-benchmark campaign:
+Infra watchdog.
 
-  - fewer than --expected-nodes nodes Ready, or any NotReady nodes
-  - pods stuck Pending for longer than --pending-minutes in the app +
-    chaos-tooling namespaces
-  - OOMKilled containers / Evicted pods in kube-system
-  - PVCs stuck off Bound for longer than --pvc-pending-minutes
+Polls one EKS cluster (by kubeconfig context) every --interval seconds and
+alerts on conditions that would quietly corrupt a chaos-benchmark campaign:
 
-Writes one JSON object per line (JSONL) to --status-file on every poll,
-regardless of health. On any alert condition it ALSO touches a sentinel file
-at "<status-file>.ALERT" (create-or-update mtime) so an outer monitor can
-`test -f`/watch mtime without parsing JSON, then keeps looping -- this
-watchdog never exits on its own.
+  - fewer than --expected-nodes nodes Ready, or any NotReady node
+  - pods Pending for longer than --pending-minutes in the app and
+    chaos-tool namespaces
+  - OOMKilled containers or Evicted pods in kube-system
+  - PVCs not Bound after --pvc-pending-minutes
+
+Appends one JSON object per poll to --status-file (JSONL), healthy or not.
+On any alert it also touches "<status-file>.ALERT" so an outer monitor can
+watch that file without parsing JSON. Never exits on its own.
 
 Usage:
   python3 -u infra-watchdog.py is-chaos-bench-a \
       --status-file data/watchdogs/bench-a/infra-status.jsonl
 
-Runs unbuffered (shebang: `env -S python3 -u`; stdout/stderr also
-reconfigured to line-buffered below as a belt-and-suspenders fallback for
-invocations that strip shebang args, e.g. `python3 infra-watchdog.py`).
+Runs unbuffered: the shebang passes -u, and stdout/stderr are also set to
+line buffering below for invocations that drop shebang arguments
+(e.g. `python3 infra-watchdog.py`).
 """
 import argparse
 import json
@@ -37,7 +36,7 @@ try:
     sys.stdout.reconfigure(line_buffering=True)
     sys.stderr.reconfigure(line_buffering=True)
 except AttributeError:
-    pass  # Python < 3.7 fallback; not expected in this environment
+    pass  # Python < 3.7 has no reconfigure()
 
 
 def now_iso():
@@ -45,8 +44,9 @@ def now_iso():
 
 
 def kubectl_json(context, args, timeout=30):
-    """Run `kubectl --context <context> <args> -o json` and return parsed JSON,
-    or None on any error (missing binary, bad context, API timeout, etc.)."""
+    """Run `kubectl --context <context> <args> -o json`. Returns (parsed JSON,
+    None), or (None, error message) on failure: missing binary, timeout,
+    non-zero exit (bad context, API error) or unparseable output."""
     cmd = ["kubectl", "--context", context] + args + ["-o", "json"]
     try:
         result = subprocess.run(

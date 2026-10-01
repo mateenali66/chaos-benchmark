@@ -47,13 +47,13 @@ variable "az_count" {
 ################################################################################
 
 variable "node_instance_types" {
-  description = "Instance types for the node group. Single type only (m5.xlarge) so the rerun controls for instance-class heterogeneity, which a peer reviewer flagged as a confound in the original mixed SPOT pool (m5.xlarge/m5a.xlarge/m4.xlarge)."
+  description = "Instance types for the node group. Use a single type so instance class is not a confound."
   type        = list(string)
   default     = ["m5.xlarge"]
 }
 
 variable "capacity_type" {
-  description = "EKS managed node group capacity type. ON_DEMAND for the rerun (the original run used SPOT, which a peer reviewer flagged as an uncontrolled confound alongside the mixed instance pool)."
+  description = "EKS managed node group capacity type. ON_DEMAND, so SPOT capacity is not a confound."
   type        = string
   default     = "ON_DEMAND"
 

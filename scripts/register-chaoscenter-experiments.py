@@ -1,24 +1,18 @@
 #!/usr/bin/env -S python3 -u
-"""Register the real 36 fault-space candidates as ChaosCenter experiments
-(Path (c), jss/ML_ARM_DESIGN.md Component 3 wiring status).
+"""Register the 36 fault-space candidates as ChaosCenter experiments.
 
-createChaosExperiment's REGISTRATION call is genuine and verified working
-(see litmus_chaoscenter_client.py's docstring); only the subsequent
-runChaosExperiment/Argo Workflow EXECUTION path is broken (chaos-runner
-binary absent from litmuschaos/litmus-mcp-server's own image, the exact
-code path its author left disabled). Path (c) keeps fault EXECUTION on the
-already-proven local-manifest path (chaoslib.run_fault_protocol,
-render_litmus_manifest) and narrows the "select and launch via ChaosCenter"
-claim to what's genuinely true: the llm strategy's litmus-arm candidate
-menu is a real, independently-listable ChaosCenter catalog, not just a
-local YAML file.
+The experiments form a catalog only. Campaign injections run from local
+manifests (run-campaign.py, chaoslib.run_fault_protocol), and the registered
+workflows call a `chaos-runner` command that the litmuschaos/go-runner image
+does not contain (see litmus_chaoscenter_client.py).
 
-One-shot, idempotent by name: skips any candidate whose experiment name
-already exists in ChaosCenter's listExperiment. Writes the resulting
-{candidate_id: experimentID} mapping to
-experiments/chaoscenter-experiment-ids.json, which run-campaign.py's llm
-strategy reads at campaign start to verify (via a live listExperiment call)
-that every candidate it might select really is registered there.
+Writes the {candidate_id: experimentID} mapping to
+experiments/chaoscenter-experiment-ids.json, which run-campaign.py's optional
+catalog check reads. Safe to re-run: a candidate is skipped when the
+existing mapping has an id for it that ChaosCenter still lists.
+
+Needs CHAOS_DATA_DIR set (it imports run-campaign.py, which imports chaoslib)
+and the ChaosCenter ports forwarded to localhost.
 """
 
 from __future__ import annotations
@@ -46,7 +40,7 @@ def main() -> None:
     from litmus_chaoscenter_client import ChaosCenterClient
 
     fault_space = run_campaign.load_fault_space()
-    litmus_candidates = [c for c in fault_space]  # every candidate has a litmus mapping (see litmus_fault_params)
+    litmus_candidates = [c for c in fault_space]  # every candidate has a LitmusChaos mapping (litmus_fault_params)
 
     client = ChaosCenterClient()
     existing = {e["experimentID"] for e in client.list_experiments()}

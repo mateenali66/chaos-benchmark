@@ -1,22 +1,17 @@
 #!/usr/bin/env -S python3 -u
-"""One-shot: compute Component 4's steady-state baseline summary from real
-Component 2 data (data-v2/bench-*/overhead/baseline/*) and write it to
+"""Compute Component 4's steady-state baseline summary and write it to
 experiments/component4-baseline-summary.json.
 
-Component 2's baseline config is the only genuinely no-tool, no-fault,
-steady-state data in this study (Component 1's benchmark-mode runs mix
-baseline+fault+recovery into one wrk2 measurement window, so they are NOT
-a clean baseline source for this purpose).
+The input is Component 2's baseline configuration
+(data-v2/bench-*/overhead/baseline/*), the only runs with no chaos tool and
+no fault. Component 1 runs are not used because their single wrk2 window
+spans baseline, fault and recovery.
 
-Instrumentation honesty note: wrk2 measures whole-app latency through the
-single nginx-thrift entry point; there is no per-service latency
-breakdown in this testbed. Component 4's hypothesis prompt asks about
-per-service p99 degradation, so the per-service signal actually supplied
-is CPU utilization (from the timeseries sidecars), not latency -- disclosed
-in both this script's output and the prompt addendum in hypothesis.txt.
-
-Run once after Component 1/2 data collection; re-run only if Component 2
-data changes (it won't -- it's a frozen, verified-complete dataset).
+wrk2 measures whole-app latency at the single nginx-thrift entry point, and
+the testbed has no per-service latency. The Component 4 prompt asks about
+per-service p99, so the per-service signal supplied is mean CPU (cores) from
+the timeseries sidecars, with the wrk2 load generator excluded. Both the
+output file and hypothesis.txt say so.
 """
 import glob
 import gzip

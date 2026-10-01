@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
-Bedrock client for Components 3 (fault selection, run-campaign.py's
-LLMStrategy) and 4 (hypothesis generation, run-hypothesis-generation.py) of
-the ML fault-selection study. Wraps boto3's bedrock-runtime `converse` API
-only -- converse normalizes message/output shape across the three frozen
-providers (Anthropic, Meta, Mistral; experiments/llm-config.yaml) so this
-module carries no provider-specific request bodies.
+Amazon Bedrock client for Component 3 (fault selection, run-campaign.py's
+LLMStrategy) and Component 4 (hypothesis generation,
+run-hypothesis-generation.py).
 
-boto3 is imported lazily inside BedrockClient.__init__ (and botocore inside
-invoke()) so this module -- and anything that imports it, e.g.
-run-campaign.py -- stays importable in environments where boto3 is not
-installed. LLMStrategy and the hypothesis-generation script are exercised in
-tests exclusively through a mock client implementing the same `.invoke()`
-signature; BedrockClient itself is never constructed in tests.
+Uses only the bedrock-runtime converse API, which gives one request and
+response shape for the three providers in experiments/llm-config.yaml
+(Anthropic, Meta, Mistral), so there are no provider-specific request bodies.
 
-Region and profile: region is passed explicitly (ca-central-1 per
-experiments/llm-config.yaml, the only region the three frozen model IDs were
-verified invokable in); profile comes from the AWS_PROFILE environment
-variable per this repo's convention, never hardcoded.
+boto3 and botocore are imported lazily, so this module and run-campaign.py
+import without boto3 installed. The tests use a mock client with the same
+invoke() signature and never construct BedrockClient.
+
+The region comes from experiments/llm-config.yaml (ca-central-1, where the
+three model ids were checked). The AWS profile comes from the AWS_PROFILE
+environment variable.
 """
 
 import os
@@ -27,8 +24,8 @@ from typing import Optional
 
 DEFAULT_REGION = "ca-central-1"
 
-# Bedrock error codes worth retrying with backoff; anything else (auth,
-# validation, access-denied, model-not-ready) fails fast on attempt 1.
+# Bedrock error codes retried with backoff. Any other error (auth,
+# validation, access denied) fails on the first attempt.
 RETRYABLE_ERROR_CODES = {
     "ThrottlingException",
     "ServiceUnavailableException",
@@ -45,10 +42,12 @@ class BedrockInvokeError(RuntimeError):
 
 @dataclass
 class LLMResponse:
-    """Normalized converse() result. `raw` is the full boto3 response dict,
-    kept for transcript logging (reproducibility depends on it -- Bedrock
-    does not expose a sampling seed across all three providers, so the
-    request/response transcript is the reproducibility record)."""
+    """Normalized converse() result.
+
+    raw is the full boto3 response, kept for the transcript, which is the
+    reproducibility record because Bedrock has no sampling seed common to all
+    three providers.
+    """
 
     text: str
     model_id: str
@@ -57,13 +56,13 @@ class LLMResponse:
 
 
 class BedrockClient:
-    """Thin wrapper over bedrock-runtime `converse`, bound to one model id
-    (an LLMStrategy or hypothesis-generation arm binds to exactly one; the
-    three arms in experiments/llm-config.yaml each get their own instance).
-    Retries up to `retries` times with exponential backoff
-    (base_delay_s * 2**(attempt-1)) on the throttling/transient error codes
-    in RETRYABLE_ERROR_CODES; any other ClientError, or a retryable one with
-    no attempts left, raises BedrockInvokeError.
+    """Wrapper over bedrock-runtime converse, bound to one model id.
+
+    Each arm in experiments/llm-config.yaml gets its own instance. Errors in
+    RETRYABLE_ERROR_CODES are retried with exponential backoff
+    (base_delay_s * 2**(attempt-1)), for at most `retries` attempts. Any other
+    ClientError, or a retryable one on the last attempt, raises
+    BedrockInvokeError.
     """
 
     def __init__(self, model_id: str, region: str = DEFAULT_REGION,
@@ -112,15 +111,10 @@ class BedrockClient:
                 last_error = e
                 code = e.response.get("Error", {}).get("Code", "")
                 msg = str(e)
-                # Some newer Bedrock model versions reject an explicit
-                # `temperature` in inferenceConfig outright ("`temperature`
-                # is deprecated for this model") rather than clamping or
-                # ignoring it -- caught live testing Component 4's real
-                # generation path (2026-08-16) against
-                # global.anthropic.claude-sonnet-5. Retry once without it
-                # rather than failing every call for models with this
-                # constraint; does not count against the retry budget meant
-                # for transient/throttling errors.
+                # Some models, including global.anthropic.claude-sonnet-5,
+                # reject an explicit temperature with "`temperature` is
+                # deprecated for this model". Retry once without it, which
+                # uses one of the attempts.
                 if (not temperature_stripped and code == "ValidationException"
                         and "temperature" in msg and "deprecated" in msg):
                     kwargs["inferenceConfig"].pop("temperature", None)
@@ -132,8 +126,7 @@ class BedrockClient:
                         f"(attempt {attempt}/{self.retries}, code={code!r}): {e}"
                     ) from e
                 time.sleep(self.base_delay_s * (2 ** (attempt - 1)))
-        # Unreachable in practice (the loop always returns or raises), kept
-        # as a defensive fallback so this function cannot silently return None.
+        # Reached only if the temperature retry above used the last attempt.
         raise BedrockInvokeError(
             f"bedrock-runtime converse failed for {self.model_id} after "
             f"{self.retries} attempts: {last_error}"

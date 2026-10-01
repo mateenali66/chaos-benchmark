@@ -2,17 +2,22 @@
 set -euo pipefail
 
 ################################################################################
-# Watchdog Launcher
-# Starts infra-watchdog.py + experiment-watchdog.py in the background (nohup)
-# for one cluster, logging under data/watchdogs/<env>/.
+# Start infra-watchdog.py and experiment-watchdog.py in the background (nohup)
+# for one cluster. Status files, output and pidfiles go to
+# ${CHAOS_DATA_DIR:-data}/watchdogs/, and the experiment watchdog follows
+# ${CHAOS_DATA_DIR:-data}/progress.log. For the data-v2 layout, set
+# CHAOS_DATA_DIR to the cluster's data-v2/<env> directory. campaign-watchdog.py
+# and s3-sync-loop.sh are not started here.
 #
 # Usage: ./scripts/watchdogs/watch-all.sh <bench-a|bench-b|ml> [--stall-minutes N]
+# The stall threshold defaults to 25 minutes.
 #
-# NOTE: the experiment watchdog can only check runner-process liveness if you
-# write a pidfile when you launch run-all-experiments.sh, e.g.:
-#   nohup ./scripts/run-all-experiments.sh > data/watchdogs/bench-a/run-all.log 2>&1 &
-#   echo $! > data/watchdogs/bench-a/run-all.pid
-# Do that BEFORE running this script so the pidfile already exists.
+# The experiment watchdog checks that the runner process is alive only if a
+# pidfile is written when run-all-experiments.sh is launched. Write it before
+# running this script, e.g.:
+#   mkdir -p "$CHAOS_DATA_DIR/watchdogs"
+#   nohup ./scripts/run-all-experiments.sh --tool chaos-mesh > "$CHAOS_DATA_DIR/watchdogs/run-all.log" 2>&1 &
+#   echo $! > "$CHAOS_DATA_DIR/watchdogs/run-all.pid"
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

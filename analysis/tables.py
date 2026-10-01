@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-Generate LaTeX tables for Paper 4 from analysis/analyze.py's CSV output.
+LaTeX tables for the tool benchmark (Component 1), built from
+analysis/analyze.py's CSV output.
 
-Reads analysis/results/*.csv only -- does NOT independently reload raw
-run JSON or recompute any statistic, so table content cannot drift out of
-sync with what analyze.py (the single source of statistical truth) actually
-computed. Run analysis/analyze.py first.
+Reads analysis/results/*.csv only and never reloads raw run JSON or
+recomputes a statistic, so the tables match analyze.py. Run
+analysis/analyze.py first.
 
 Tables:
-    Table 2: Tool feature comparison (static)
-    Table 3: Fault injection scenarios and parameters (static)
-    Table 4: Per-scenario results (median [IQR], n=30 repetitions)
-    Table 5: Confirmatory statistical tests (Mann-Whitney U, Holm-Bonferroni,
-             Cliff's delta with BCa/percentile-fallback 95% CI)
-    Table 6: Resource overhead during fault injection
+    Table 2: tool feature comparison (static)
+    Table 3: fault scenarios and parameters (from experiments/scenarios.yaml)
+    Table 4: per-scenario results (median [IQR], n=30 repetitions)
+    Table 5: confirmatory tests on throughput (Mann-Whitney U, Holm-Bonferroni,
+             Cliff's delta)
+    Table 5b: confirmatory tests on the secondary families p99 latency and
+              error rate
+    Table 6: recovery time and pod restarts (Component 1 data, despite the
+             file name table6_overhead.tex)
 """
 
 import csv
@@ -51,7 +54,7 @@ def _index(rows: list[dict], *keys: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Table 2: Tool Feature Comparison (static -- no experimental data involved)
+# Table 2: Tool Feature Comparison (static, no experimental data)
 # ---------------------------------------------------------------------------
 def table2_tool_comparison():
     latex = r"""\begin{table*}[ht]
@@ -86,14 +89,11 @@ GitHub stars (top-10 census, Nov.\ 2024)\textsuperscript{*} & \checkmark & \chec
 
 
 # ---------------------------------------------------------------------------
-# Table 3: Fault Injection Scenarios (static)
+# Table 3: Fault Injection Scenarios
 # ---------------------------------------------------------------------------
 def table3_scenarios():
-    """Generated from experiments/scenarios.yaml, not hardcoded -- a prior
-    hardcoded version listed "compose-post" as the target for 10 of 12
-    scenarios when only 2 actually target compose-post-service; found by a
-    2026-08-18 numerical-consistency audit that hand-verified every target
-    against the real config."""
+    """Built from experiments/scenarios.yaml, so the ID, category, name and
+    target columns always match the config."""
     import yaml
     scenarios_path = Path(__file__).resolve().parent.parent / "experiments" / "scenarios.yaml"
     with open(scenarios_path) as f:
@@ -101,13 +101,10 @@ def table3_scenarios():
 
     category_labels = {"pod": "Pod/Container", "network": "Network",
                         "resource": "Resource", "application": "Application"}
-    # Hand-verified against experiments/scenarios.yaml's actual `parameters`
-    # field per scenario (2026-08-18, after a peer-review pass caught P2
-    # showing a stale "mode: one" copied from P1 -- container-kill has no
-    # `mode` field, it targets named containers). Re-verify this dict against
-    # the YAML if scenarios.yaml's parameters ever change; unlike the target
-    # column above, formatting is too heterogeneous across action types
-    # (delay/loss/partition/stressors/abort) to auto-render compactly.
+    # Short summaries of each scenario's `parameters` in
+    # experiments/scenarios.yaml, written by hand because the formats differ
+    # too much across action types (delay, loss, partition, stressors,
+    # abort) to render compactly. Update them if the YAML changes.
     param_summaries = {
         "P1": "mode: one", "P2": "container: nginx-thrift", "P3": "duration: 120s",
         "N1": "50ms delay", "N2": "100ms delay", "N3": "300ms delay",
@@ -257,11 +254,8 @@ def table5_statistical_tests():
 
 
 # ---------------------------------------------------------------------------
-# Table 5b: Confirmatory statistical comparison of the two registered
-# secondary metric families (latency p99, error rate) -- added after a peer
-# review pass flagged that the manuscript's own "latency diverges" claim was
-# never backed by a shown significance test, even though both families are
-# registered in the stats plan and already computed in statistical_tests.csv.
+# Table 5b: Confirmatory tests for the two registered secondary metric
+# families (p99 latency, error rate), from statistical_tests.csv
 # ---------------------------------------------------------------------------
 def table5b_secondary_metrics():
     tests = _read_csv("statistical_tests.csv")
@@ -318,7 +312,7 @@ def table5b_secondary_metrics():
 
 
 # ---------------------------------------------------------------------------
-# Table 6: Overhead / Resource Comparison
+# Table 6: Recovery time and pod restarts (Component 1)
 # ---------------------------------------------------------------------------
 def table6_overhead():
     summary = _index(_read_csv("summary_stats.csv"), "tool", "scenario")

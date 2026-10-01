@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ################################################################################
-# Experiment Runner Wrapper
-# Sets environment and delegates to Python orchestrator
+# Single-run wrapper: sets AWS_PROFILE (default "default") and passes all
+# arguments to run-experiment.py. CHAOS_DATA_DIR must be set.
 # Usage: ./scripts/run-experiment.sh --tool chaos-mesh --scenario p1 --run 1
 ################################################################################
 set -euo pipefail

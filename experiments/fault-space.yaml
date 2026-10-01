@@ -1,31 +1,21 @@
 ################################################################################
-# Campaign-Mode Candidate Fault Space (Paper 4, ML fault-selection study)
+# Fault space for Components 3 and 4 (36 candidates)
 #
-# Consumed by scripts/run-campaign.py. NOT used by --mode benchmark or
-# --mode overhead (those still read the original 12 scenarios from
-# experiments/scenarios.yaml + experiments/{chaos-mesh,litmus}/*.yaml).
+# Read by the Component 3 and 4 scripts in scripts/. Component 1 uses
+# experiments/scenarios.yaml and the manifests in experiments/{chaos-mesh,litmus}/.
 #
-# 36 candidates = the same 12 fault templates already benchmarked in
-# scenarios.yaml (3 pod, 5 network -> collapsed to 4 distinct
-# latency/loss/partition templates here since 50/100/300ms count as three
-# separate templates, 2 resource, 2 application) x 3 target services each,
-# assigned by continuous round-robin over the 10 available DeathStarBench
-# social-network services so exposure is roughly even (first 6 services get
-# 4 appearances across the 36 candidates, the rest get 3). See
-# scripts/CAMPAIGN_MODES.md for the round-robin derivation and the
-# rationale for reusing services the original 12 scenarios already target
-# (8 of the 10 services were already used at least once; only
-# url-shorten-service and unique-id-service are genuinely new).
+# The 12 fault templates of scenarios.yaml (3 pod, 5 network, 2 resource,
+# 2 application) x 3 target services each. Services are assigned round-robin
+# over the 10 services below, so 6 services appear 4 times and 4 appear 3
+# times. url-shorten-service and unique-id-service are not targeted by any
+# Component 1 scenario.
 #
-# scenario_template values are manifest-template keys, matching the
-# CHAOS_MESH / LITMUS renderers in scripts/run-campaign.py.
+# scenario_template values are keys of the manifest renderers in
+# scripts/run-campaign.py.
 #
-# CAUTION -- placeholder ports: http-abort-503 and grpc-unavailable "port"
-# params below are inherited from the original a1 (nginx-thrift:8080) and a2
-# (user-service:9090) scenarios. The other 8 services' actual listen ports
-# are NOT verified here; check manifests/ or DeathStarBench's docker-compose
-# before running an application-category candidate against a service other
-# than nginx-thrift/user-service, or the HTTPChaos rule may simply miss.
+# The "port" values of http-abort-503 and grpc-unavailable are copied from
+# scenarios a1 (nginx-thrift:8080) and a2 (user-service:9090). They were not
+# checked against the listen ports of the other target services.
 ################################################################################
 
 metadata:

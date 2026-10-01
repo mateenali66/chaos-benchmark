@@ -2,10 +2,16 @@
 set -euo pipefail
 
 ################################################################################
-# Cluster Bootstrap Script
-# Run after: terraform -chdir=terraform apply -var-file=envs/<env>.tfvars
-# Installs monitoring stack, chaos tools, and verifies cluster readiness
+# Cluster bootstrap. Run after:
+#   terraform -chdir=terraform apply -var-file=envs/<env>.tfvars
+# Selects the Terraform workspace, adds the kubeconfig context is-chaos-<env>,
+# waits for the nodes, creates the namespaces, then installs Jaeger,
+# Prometheus and Grafana, the cluster's chaos tool and, optionally, Gremlin.
 #
+# Env: AWS_PROFILE (default "default"), AWS_REGION (default ca-central-1),
+# SETUP_TOOLS (chaos-mesh, litmus, both or none, default per cluster below),
+# GREMLIN_TEAM_ID and GREMLIN_TEAM_SECRET (Gremlin is installed only when both
+# are set).
 # Usage: ./scripts/setup.sh <bench-a|bench-b|ml>
 ################################################################################
 
@@ -69,11 +75,11 @@ helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
   --wait --timeout 5m
 echo ""
 
-# Per-cluster tool assignment for the revised study: each cluster gets ONE
-# chaos tool (bench-a=chaos-mesh, bench-b=litmus, ml=litmus). The overhead
-# study's no-tool baseline runs (run-overhead.sh stage a) require the tool to
-# NOT be installed yet, so pass SETUP_TOOLS=none for the initial bootstrap and
-# re-run setup.sh with SETUP_TOOLS unset (or =<tool>) after stage (a) is done.
+# One chaos tool per cluster: bench-a=chaos-mesh, bench-b=litmus, ml=litmus.
+# The run-overhead.sh baseline stage needs a cluster with no chaos tool. For
+# that, bootstrap with SETUP_TOOLS=none, delete the empty chaos-testing and
+# litmus namespaces created in step 3, and re-run setup.sh with SETUP_TOOLS
+# unset once the baseline stage is done.
 case "$ENV_NAME" in
   bench-a) DEFAULT_TOOLS="chaos-mesh" ;;
   bench-b) DEFAULT_TOOLS="litmus" ;;

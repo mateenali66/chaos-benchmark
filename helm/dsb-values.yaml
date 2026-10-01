@@ -1,19 +1,12 @@
-# Resource override for the DeathStarBench socialnetwork chart.
+# Resource override for the DeathStarBench socialnetwork chart, used for all
+# Component 1, 2 and 3 runs (analysis/PREREGISTRATION.md, Component 1
+# amendment item 2).
 #
-# The chart's default global resources (100m CPU / 128Mi memory, requests ==
-# limits) starve the application at the study's 200 rps load: stateful pods
-# (mongodb/redis) are OOMKilled stochastically (observed 5-7 restarts in 3.5h)
-# and every service is CPU-throttled, producing baseline error rates that
-# swing 0-29% run to run. That noise floor would invalidate both the overhead
-# decomposition and the tool benchmark, so the revision campaign raises the
-# envelope BEFORE Component 1 data collection (disclosed in the manuscript;
-# amendment dated 2026-08-15 in analysis/PREREGISTRATION.md).
-#
-# Capacity check (3x m5.xlarge = 12 vCPU / 48Gi): 28 pods request
-# 2.8 CPU / 7Gi; limits allow bursts to 500m / 512Mi per pod.
-# CPU limit 1000m: pilot sidecars showed the single-threaded redis pods pinned
-# at the 500m cap (CPU throttling = seconds-scale p99 tails); 1000m lets redis
-# reach its one-core ceiling. Requests unchanged, scheduling unaffected.
+# The chart default (100m CPU / 128Mi, requests equal to limits) OOMKilled the
+# mongodb and redis pods and CPU-throttled every service in pilot runs, with
+# baseline error rates of 0-29%. The CPU limit is 1000m because the
+# single-threaded redis pods saturated a 500m limit, which produced
+# seconds-scale p99 latency. 28 pods request 2.8 CPU and 7Gi in total.
 global:
   resources:
     limits:

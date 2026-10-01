@@ -2,9 +2,11 @@
 set -euo pipefail
 
 ################################################################################
-# Cluster Teardown Script
-# Run BEFORE: terraform -chdir=terraform destroy -var-file=envs/<env>.tfvars
-# Cleans up Helm releases and CRDs to prevent stuck finalizers
+# Cluster teardown. Run before:
+#   terraform -chdir=terraform destroy -var-file=envs/<env>.tfvars
+# Removes the Helm releases, CRDs, Jaeger, PVCs and namespaces so that stuck
+# finalizers do not block the destroy. Only the slot 0 DeathStarBench release
+# (namespace social-network) is uninstalled.
 #
 # Usage: ./scripts/teardown.sh <bench-a|bench-b|ml>
 ################################################################################
@@ -62,7 +64,8 @@ if helm status litmus -n litmus --kube-context "$KUBE_CONTEXT" &>/dev/null; then
   kubectl get crd -o name | grep litmus 2>/dev/null | xargs -r kubectl delete --timeout=60s || true
 fi
 
-# Step 3: Remove Chaos Mesh (must delete experiments first)
+# Step 3: Remove Chaos Mesh. Delete the chaos resources first so their
+# finalizers can still be handled by the controller.
 if helm status chaos-mesh -n chaos-testing --kube-context "$KUBE_CONTEXT" &>/dev/null; then
   echo "--- Cleaning up Chaos Mesh experiments ---"
   for kind in networkchaos podchaos stresschaos iochaos dnschaos httpchaos; do

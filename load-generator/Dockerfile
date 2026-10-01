@@ -29,7 +29,8 @@ COPY --from=builder /usr/local/lib/lua /usr/local/lib/lua
 COPY --from=builder /usr/local/lib/luarocks /usr/local/lib/luarocks
 COPY --from=builder /usr/local/share/lua /usr/local/share/lua
 
-# Bake in our custom Lua workload script
+# Workload script (40% compose post, 30% home timeline, 20% user timeline,
+# 10% follow)
 COPY mixed-workload.lua /scripts/mixed-workload.lua
 
 ENTRYPOINT ["/usr/local/bin/wrk"]

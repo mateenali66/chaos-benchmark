@@ -1,32 +1,30 @@
 #!/usr/bin/env bash
 ################################################################################
 # Component 3 batch driver: 5 arms (random, coverage, llm-claude, llm-llama,
-# llm-mistral) x 10 campaigns = 50 campaigns, 500 injections total, on the
-# dedicated is-chaos-ml cluster (analysis/PREREGISTRATION.md's Component 3).
-# --tool litmus for every campaign (the LLM arms' "select from a ChaosCenter
-# menu" framing, ../jss/ML_ARM_DESIGN.md, is LitmusChaos-specific; chaos-mesh
-# has no MCP/AI story per that doc's verified fact #5).
+# llm-mistral) x 10 campaigns = 50 campaigns, 500 injections in total, on the
+# is-chaos-ml cluster (analysis/PREREGISTRATION.md, Component 3). Every
+# campaign uses --tool litmus, because the LLM arms select faults from a
+# LitmusChaos ChaosCenter experiment menu.
 #
-# 3-slot parallelism: the 50 (arm, campaign) pairs are assigned to slots by
-# flat index % 3 (see the loop below), giving each slot a mix of all 5 arms
-# rather than one slot serially draining a single arm. Requires:
-#   - DSB deployed + node-pinned in social-network(-1/-2) (deploy-dsb.sh)
-#   - ChaosExperiment CRDs + Litmus RBAC per slot (post-deploy.sh)
-#   - Node labels chaos-slot=0/1/2 (kubectl label, done once manually)
-#   - run-campaign.py's manifest namespace substitution + chaoslib's
-#     Prometheus port-forward collision guard (both fixed 2026-08-16
-#     specifically for this launch -- see jss/REVISION_PLAN.md)
+# The 50 (arm, campaign) pairs are assigned to 3 slots by flat index % 3, so
+# each slot runs a mix of all 5 arms. Run one process per slot. Requires:
+#   - DSB deployed and node-pinned in social-network, social-network-1 and
+#     social-network-2 (deploy-dsb.sh)
+#   - ChaosExperiment definitions and Litmus RBAC in each slot (post-deploy.sh)
+#   - node labels chaos-slot=0/1/2, applied once with kubectl label
 #
-# Usage (one terminal/process per slot, matching run-all-experiments.sh's
-# slot convention):
+# Env: CHAOS_SLOT (default 0), CHAOS_DATA_DIR (default data-v2/ml),
+# CHAOS_ECR_REPO (default: this account's wrk2 image in ca-central-1).
+# The script takes no arguments.
+#
+# Usage:
 #   CHAOS_SLOT=0 ./scripts/run-all-campaigns.sh
 #   CHAOS_SLOT=1 ./scripts/run-all-campaigns.sh
 #   CHAOS_SLOT=2 ./scripts/run-all-campaigns.sh
 #
-# Resume: run-campaign.py itself resumes each (arm, campaign) internally
-# (skips injections whose injection-N.json already exists) and this driver
-# skips a campaign entirely once campaign-summary.json reports 10/10
-# injections, so re-running any slot after an interruption is always safe.
+# Resume: run-campaign.py skips injections whose injection-N.json exists, and
+# this driver skips a campaign whose campaign-summary.json reports 10/10
+# injections, so a slot can be re-run after an interruption.
 ################################################################################
 set -uo pipefail
 
@@ -36,12 +34,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export AWS_PROFILE="${AWS_PROFILE:-default}"
 export CHAOS_SLOT="${CHAOS_SLOT:-0}"
 export CHAOS_DATA_DIR="${CHAOS_DATA_DIR:-${PROJECT_ROOT}/data-v2/ml}"
-# chaoslib.ECR_REPO defaults to a stale cross-account image reference --
-# 403 Forbidden under the node IAM role (found live 2026-08-16
-# debugging the smoke-test campaign's zero-throughput wrk2 runs). The real
-# same-account image already exists (pushed by build-wrk2-image.sh); must
-# be selected explicitly, matching chaoslib.py's own documented override
-# convention.
+# chaoslib.ECR_REPO defaults to a placeholder that does not resolve. Use this
+# account's wrk2 image (pushed by build-wrk2-image.sh) unless CHAOS_ECR_REPO
+# is already set.
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export CHAOS_ECR_REPO="${CHAOS_ECR_REPO:-${AWS_ACCOUNT_ID}.dkr.ecr.ca-central-1.amazonaws.com/chaos-benchmark/wrk2}"
 

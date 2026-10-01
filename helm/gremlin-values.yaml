@@ -1,5 +1,6 @@
 ################################################################################
-# Gremlin Helm values (template)
+# Gremlin Helm values. Gremlin was not used in this study. scripts/setup.sh
+# installs it only when GREMLIN_TEAM_ID and GREMLIN_TEAM_SECRET are set.
 # Credentials must be provided at install time via --set flags:
 #   --set gremlin.secret.teamID=YOUR_TEAM_ID
 #   --set gremlin.secret.teamSecret=YOUR_TEAM_SECRET

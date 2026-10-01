@@ -2,19 +2,15 @@
 """
 Chaos Benchmark shared library.
 
-Holds everything run-experiment.py, run-campaign.py, and run-overhead.sh's
-Python entry points need in common: kubectl/subprocess helpers, port-forward
-management, Prometheus queries (including full-run-window timeseries capture
-for the ML analysis), wrk2 job rendering/parsing, derived-metric computation,
-and the two protocol executors (`run_fault_protocol` for the 3/4-phase
-baseline->fault->[recovery->cooldown] sequence, `run_flat_load` for a single
-undisturbed load window used by overhead-isolation baseline/idle configs).
+Common code for run-experiment.py, run-campaign.py and backfill-sidecars.py:
+kubectl helpers, port-forward management, Prometheus queries (including the
+full-run timeseries sidecar used by Component 5), wrk2 Job rendering and
+parsing, derived metrics, and two protocol executors. run_fault_protocol runs
+baseline, fault, recovery and an optional cooldown. run_flat_load runs one
+load window with no fault, for the overhead baseline and idle configs.
 
-This module exists mainly because run-experiment.py's filename has a hyphen
-and cannot be `import`-ed directly by run-campaign.py; pulling the reusable
-pieces out here avoids importlib.util.spec_from_file_location tricks and
-keeps run-experiment.py's CLI behavior byte-compatible with what it was
-before this refactor.
+It is a separate module because run-experiment.py has a hyphen in its name
+and cannot be imported.
 """
 
 import gzip
@@ -38,17 +34,11 @@ from typing import Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
-# CHAOS_DATA_DIR isolates the revision campaign's results from the archived
-# original 120-run dataset in data/ (different region/capacity; mixing them
-# via resume would reintroduce the infrastructure confound). Per-cluster roots:
-# data-v2/bench-a, data-v2/bench-b, data-v2/ml. Deliberately no silent
-# fallback to data/ here: that used to be the default, and it silently
-# misdirected three consecutive standalone backfill runs on 2026-08-17
-# (each one wrote perfectly valid data into the wrong directory tree and
-# never touched the real target files) before the cause was found. There is
-# also no single correct data-v2 subdirectory to guess (bench-a/bench-b/ml
-# are all valid but different), so guessing would just trade one
-# silent-wrong-default footgun for another -- fail loudly instead.
+# Results root, one per cluster: data-v2/bench-a, data-v2/bench-b or
+# data-v2/ml. There is no default, because no single directory is right for
+# every cluster and a wrong default writes valid-looking results into the
+# wrong tree. The original 120-run dataset in data/ came from different
+# infrastructure and is never mixed in.
 _data_dir_env = os.environ.get("CHAOS_DATA_DIR")
 if not _data_dir_env:
     raise RuntimeError(
@@ -61,71 +51,62 @@ if not _data_dir_env:
 DATA_DIR = Path(_data_dir_env)
 WRK2_TEMPLATE = PROJECT_ROOT / "load-generator" / "wrk2-job.yaml.tpl"
 
-# Overridden per-account: export CHAOS_ECR_REPO after build-wrk2-image.sh
-# pushes to the target account/region. The placeholder default below does
-# not resolve to any real account and is intentionally non-functional --
-# any run that depends on it without exporting CHAOS_ECR_REPO first will
-# fail at the ECR pull, not silently pull a stale/wrong account's image.
+# Set CHAOS_ECR_REPO to the image that build-wrk2-image.sh pushed. The default
+# is a placeholder, so a run without it fails at image pull instead of pulling
+# some other image.
 ECR_REPO = os.environ.get(
     "CHAOS_ECR_REPO",
     "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/chaos-benchmark/wrk2",
 )
 NAMESPACE = "social-network"
 
-# Slot parallelism (backward-compatible extension): a cluster can run up to
-# 3 concurrent, fully isolated copies of the DeathStarBench stack, one per
-# namespace, each pinned to its own 3 dedicated nodes (node label
-# chaos-slot=0/1/2). Slot 0 (or CHAOS_SLOT unset) is the pre-existing
-# single-namespace behavior, byte-for-byte -- this is load-bearing, since a
-# campaign invoked without CHAOS_SLOT must be completely unaffected by any
-# of this. See scripts/SLOT_PARALLELISM.md.
+# Slot parallelism: a cluster can run up to 3 isolated copies of the
+# DeathStarBench stack, one per namespace, each on its own 3 nodes (node label
+# chaos-slot=0/1/2). Slot 0, or CHAOS_SLOT unset, is the single-namespace
+# default. See scripts/SLOT_PARALLELISM.md.
 CHAOS_SLOT = os.environ.get("CHAOS_SLOT", "0")
 
 
 def namespace_for_slot(slot: str | None) -> str:
-    """Namespace convention for slot parallelism: slot 0/unset -> the
-    existing default namespace (backward compat); slot N (N != "0") ->
-    "<NAMESPACE>-<N>". Kept in sync with reset-app-state.sh and
-    init-social-graph.sh's bash re-implementation of this same logic -- if
-    you change it here, change it in both places (each has a cross-reference
-    comment back to this function)."""
+    """Namespace for a slot: NAMESPACE for slot 0 or unset, "<NAMESPACE>-<N>" otherwise.
+
+    reset-app-state.sh and init-social-graph.sh implement the same rule in
+    bash. Change all three together.
+    """
     return NAMESPACE if not slot or slot == "0" else f"{NAMESPACE}-{slot}"
 
 
-# Small deterministic per-slot port offset, stacked on top of the existing
-# per-cluster KUBECONFIG-checksum offset used by reset-app-state.sh and
-# init-social-graph.sh for their local verification/init port-forwards. That
-# checksum offset alone only separates *clusters* (different KUBECONFIG ->
-# different checksum); it does nothing for 3 slots sharing one KUBECONFIG on
-# the same cluster, which is the new case this offset covers. 97 is
-# arbitrary but must stay in sync with the bash scripts' literal `* 97`
-# (each has a cross-reference comment back to this constant).
+# Per-slot local port offset, added to the per-cluster KUBECONFIG checksum
+# offset that reset-app-state.sh and init-social-graph.sh use for their
+# port-forwards. The checksum separates clusters; this separates slots that
+# share one KUBECONFIG. The value is arbitrary but must match the literal
+# `* 97` in those scripts.
 SLOT_PORT_STEP = 97
 
 
 def slot_port_offset(slot: str | None, base: int) -> int:
-    """Slot-specific local port, so 3 slots on one KUBECONFIG never collide
-    on a port-forward. Slot 0/unset returns `base` unchanged (backward
-    compat). Not needed for PROMETHEUS_PORT -- all slots query the same
-    shared Prometheus instance in the monitoring namespace via a different
-    `namespace=` argument to the query functions, not a different port."""
+    """Local port for a slot, so slots on one KUBECONFIG do not collide.
+
+    Slot 0 or unset returns base. Not used for PROMETHEUS_PORT: all slots
+    share one Prometheus and differ only in the namespace they query.
+    """
     if not slot or slot == "0":
         return base
     return base + int(slot) * SLOT_PORT_STEP
 
 
-# Original 4-phase protocol timing (seconds). --mode benchmark uses these
-# unmodified so the original 120-run (now 720-run) dataset stays reproducible.
+# Four-phase protocol timing in seconds, used by --mode benchmark
+# (Component 1) and the fault config of --mode overhead.
 BASELINE_DURATION = 300
 FAULT_DURATION = 120
 RECOVERY_DURATION = 60
 COOLDOWN_DURATION = 60
 TOTAL_LOAD_DURATION = BASELINE_DURATION + FAULT_DURATION + RECOVERY_DURATION
 
-# Overhead-isolation mode: flat 300s load window, no fault.
+# Overhead baseline and idle configs: one 300 s load window, no fault.
 OVERHEAD_LOAD_DURATION = 300
 
-# Campaign mode: shortened per-injection protocol, no cooldown.
+# Campaign mode (Component 3): shortened protocol, no cooldown.
 CAMPAIGN_BASELINE_DURATION = 120
 CAMPAIGN_FAULT_DURATION = 120
 CAMPAIGN_RECOVERY_DURATION = 60
@@ -133,15 +114,14 @@ CAMPAIGN_RECOVERY_DURATION = 60
 # Load generator defaults
 WRK_THREADS = "4"
 WRK_CONNECTIONS = "100"
-# Offered load. The original 200 rps SATURATES the SUT (fresh-state capacity
-# ~160-180 rps), so wrk2's corrected latency measured queueing collapse, not
-# fault impact (pilot: p99 0.98 minutes on a clean baseline). The campaign
-# runs at 120 rps (~2/3 of measured capacity) so latency is interpretable.
+# Offered load in requests per second. The application saturates at about
+# 160-180 rps from a fresh state, where wrk2's corrected latency measures
+# queueing rather than fault impact. 120 rps is about two thirds of that
+# capacity (analysis/PREREGISTRATION.md, Component 1 amendment 4).
 WRK_RATE = os.environ.get("CHAOS_LOAD_RPS", "120")
 
-# Prometheus
-# Per-process override so two clusters' runners can port-forward concurrently
-# on one workstation (e.g. bench-a=9090, bench-b=9091).
+# Prometheus. CHAOS_PROM_PORT lets runners for two clusters port-forward on
+# one machine at the same time (e.g. bench-a=9090, bench-b=9091).
 PROMETHEUS_PORT = int(os.environ.get("CHAOS_PROM_PORT", "9090"))
 TIMESERIES_STEP = "5s"
 
@@ -172,30 +152,24 @@ INFRA_QUERIES = {
     "cpu_usage": 'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
     "memory_usage": 'sum(container_memory_working_set_bytes{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
     "pod_restarts": 'sum(kube_pod_container_status_restarts_total{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
-    # No container!=""/!="POD" filter here: container_network_*_total is a
-    # cAdvisor POD-LEVEL metric (network namespaces are shared per-pod, not
-    # per-container) and carries no "container" label at all, so that filter
-    # (correct for the per-container cpu/memory/restarts queries below)
-    # excludes every series and silently zeroed this metric in every sidecar
-    # since the filter was added. Confirmed live: 0 series with the filter,
-    # 28 without, on a real run. [2m] window for the same scrape-alignment
-    # reason as node_cpu_utilization below (confirmed live: [30s]=14 series,
-    # [2m]=28 series).
+    # container_network_* is a pod-level cAdvisor metric with no "container"
+    # label, so the container!=""/!="POD" filter used above would drop every
+    # series. The [2m] window is needed for the same scrape-interval reason
+    # as node_cpu_utilization in TIMESERIES_QUERIES. Runs collected before
+    # this query was fixed have empty network series (see the erratum in
+    # analysis/PREREGISTRATION.md, Component 5 features).
     "network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
 }
 
-# Full-run-window queries for the per-run timeseries sidecar (ML analysis
-# input). These widen INFRA_QUERIES to range queries plus node-level and
-# best-effort per-service L7 queries. A query returning no series is not an
-# error: DeathStarBench's stock nginx-thrift/Thrift services do not export
-# Envoy/Istio-style L7 metrics unless the cluster has a mesh installed, so
-# http_* entries are expected to be empty on an un-meshed cluster.
+# Queries for the per-run timeseries sidecar (Component 5 input): the
+# INFRA_QUERIES metrics plus node-level and best-effort L7 metrics. An empty
+# result is not an error. DeathStarBench's services do not export Envoy-style
+# L7 metrics without a service mesh, so the http_* entries are empty on these
+# clusters.
 TIMESERIES_QUERIES = {
     "container_cpu_usage": 'sum(rate(container_cpu_usage_seconds_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
     "container_memory_working_set": 'sum(container_memory_working_set_bytes{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
-    # See INFRA_QUERIES["network_rx_bytes"] above for why no container filter
-    # and a [2m] window: confirmed live, the container!=""/!="POD" filter
-    # excludes 100% of series for this pod-level metric.
+    # No container filter and a [2m] window, as in INFRA_QUERIES["network_rx_bytes"].
     "container_network_rx_bytes": 'sum(rate(container_network_receive_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
     "container_network_tx_bytes": 'sum(rate(container_network_transmit_bytes_total{{namespace="{ns}"}}[2m])) by (pod)',
     "pod_restarts_total": 'sum(kube_pod_container_status_restarts_total{{namespace="{ns}", container!="", container!="POD"}}) by (pod)',
@@ -203,7 +177,7 @@ TIMESERIES_QUERIES = {
     # two samples rate() needs and returns empty; [2m] is required here.
     "node_cpu_utilization": 'sum(rate(node_cpu_seconds_total{{mode!="idle"}}[2m])) by (instance) / count(node_cpu_seconds_total{{mode="idle"}}) by (instance)',
     "node_memory_used_bytes": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
-    # Best-effort per-service L7 metrics (see docstring above).
+    # Best-effort L7 metrics (see the comment above this dict).
     "http_request_rate": 'sum(rate(envoy_http_downstream_rq_total{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod)',
     "http_error_rate": 'sum(rate(envoy_http_downstream_rq_xx{{namespace="{ns}", envoy_response_code_class!="2"}}[30s])) by (pod)',
     "http_latency_bucket": 'sum(rate(envoy_http_downstream_rq_time_bucket{{namespace="{ns}", container!="", container!="POD"}}[30s])) by (pod, le)',
@@ -289,25 +263,17 @@ _port_forwards: list[subprocess.Popen] = []
 
 
 def start_port_forward(namespace: str, service: str, local_port: int, remote_port: int) -> Optional[subprocess.Popen]:
-    """Start a kubectl port-forward in the background.
+    """Start a kubectl port-forward in the background and return the process.
 
-    Check-before-start guard (added 2026-08-16, wiring up 3-slot campaign
-    concurrency): PROMETHEUS_PORT is deliberately NOT slot-offset -- all
-    slots share one Prometheus (see slot_port_offset's docstring) -- so 3
-    concurrent slot processes on one cluster all call this with the same
-    local_port. Without this guard, the 2nd/3rd caller's kubectl process
-    fails to bind the already-held port, start_port_forward raises, and the
-    caller degrades to prom_available=False -- which does not just drop
-    supplementary telemetry: compute_weakness_signals's recovery_over_60s
-    (one of Component 3's four weakness-signal dimensions, PREREGISTRATION.md)
-    reads phases.*.infra_metrics, which is `{}` whenever prom_available is
-    False, making recovery_over_60s permanently False for that slot for the
-    rest of the campaign -- a silent, systematic bias in the primary
-    discovery-curve metric for whichever slots lose the race. If a
-    port-forward on local_port is already live and healthy, this returns
-    None without spawning a second process (and without appending to
-    _port_forwards, since this call doesn't own that process and must not
-    kill it in some other slot's cleanup_port_forwards())."""
+    For PROMETHEUS_PORT, returns None without starting anything if Prometheus
+    already answers there. All slots share one Prometheus on one local port,
+    so a second slot would otherwise fail to bind, run with
+    prom_available=False, and lose the per-phase metrics that
+    run-campaign.py's recovery_over_60s signal reads. A process this call did
+    not start is not added to _port_forwards, so cleanup_port_forwards() in
+    one slot never stops another slot's tunnel. Raises RuntimeError if
+    kubectl exits immediately.
+    """
     if local_port == PROMETHEUS_PORT:
         try:
             if query_prometheus_instant("up").get("status") == "success":
@@ -400,12 +366,10 @@ def collect_infra_metrics(start_ts: float, end_ts: float, namespace: str = NAMES
 
 def collect_run_timeseries(window_start: float, window_end: float,
                             namespace: str = NAMESPACE, step: str = TIMESERIES_STEP) -> dict:
-    """Best-effort full-run-window range query for every metric in
-    TIMESERIES_QUERIES, at fine (default 5s) resolution, for the ML sidecar.
+    """Range-query every metric in TIMESERIES_QUERIES over the run window.
 
-    Never raises. A failing or empty query is recorded with an "error" key
-    (or an empty result list) rather than aborting the whole collection, so
-    one bad query never costs the rest of the timeseries.
+    Default step is 5 s. Never raises: a failed query is recorded with an
+    empty result and an "error" key, and the other queries still run.
     """
     series = {}
     for name, tpl in TIMESERIES_QUERIES.items():
@@ -426,10 +390,10 @@ def write_timeseries_sidecar(output_file: Path, window_start: float, window_end:
                               fault_start: float | None, fault_end: float | None,
                               prom_available: bool, namespace: str = NAMESPACE,
                               step: str = TIMESERIES_STEP) -> Path | None:
-    """Write the gzipped raw-Prometheus-timeseries sidecar next to a run's
-    output JSON (e.g. run-3.json -> run-3.timeseries.json.gz). Failure
-    tolerant throughout: any problem is logged and results in a skipped or
-    partial sidecar, never a failed run.
+    """Write the gzipped Prometheus timeseries sidecar next to a run's JSON.
+
+    For example run-3.json gets run-3.timeseries.json.gz. Any problem is
+    logged and gives a skipped or partial sidecar, never a failed run.
     """
     if not prom_available:
         print("  WARNING: Prometheus unavailable, skipping timeseries sidecar.", file=sys.stderr)
@@ -437,9 +401,8 @@ def write_timeseries_sidecar(output_file: Path, window_start: float, window_end:
 
     sidecar_path = output_file.parent / f"{output_file.stem}.timeseries.json.gz"
 
-    # Callers invoke this AFTER cleanup_port_forwards() (their finally block),
-    # so the Prometheus tunnel is usually gone by now; without this re-check
-    # every range query fails with connection-refused and the sidecar is junk.
+    # Some callers run this after cleanup_port_forwards(), so reopen the
+    # Prometheus tunnel if it is not reachable.
     own_port_forward = False
     try:
         if query_prometheus_instant("up").get("status") != "success":
@@ -471,8 +434,8 @@ def write_timeseries_sidecar(output_file: Path, window_start: float, window_end:
             "fault_end": fault_end,
             "step": step,
             "namespace": namespace,
-            # Provenance: exact queries used, so analysis can detect if a
-            # sidecar predates a query fix.
+            # Exact queries used, so analysis can tell whether a sidecar
+            # predates a query fix.
             "queries": {k: v.format(ns=namespace) for k, v in TIMESERIES_QUERIES.items()},
         },
         "metrics": metrics,
@@ -492,11 +455,11 @@ def write_timeseries_sidecar(output_file: Path, window_start: float, window_end:
 ################################################################################
 
 def wrk2_job_name(label: str, run: int, slot: str | None = None) -> str:
-    """Job name for a wrk2 load-generator Job. `slot` defaults to the
-    module-level CHAOS_SLOT (env-driven). Slot 0/unset keeps the original
-    wrk2-{label}-run{run} pattern byte-for-byte (backward compat for the
-    currently-running default-namespace campaign); any other slot prefixes
-    the slot so concurrent slots on one cluster never collide on Job name."""
+    """Name for a wrk2 load-generator Job.
+
+    slot defaults to CHAOS_SLOT. Slot 0 or unset gives wrk2-{label}-run{run};
+    other slots add the slot number so concurrent slots never share a name.
+    """
     if slot is None:
         slot = CHAOS_SLOT
     if not slot or slot == "0":
@@ -506,15 +469,12 @@ def wrk2_job_name(label: str, run: int, slot: str | None = None) -> str:
 
 def render_wrk2_job(label: str, run: int, duration: int,
                      namespace: str = namespace_for_slot(CHAOS_SLOT)) -> str:
-    """Render wrk2 Job YAML from template. `namespace` controls both where
-    the Job is created and which nginx-thrift Service it targets (the
-    template substitutes both from the same NAMESPACE placeholder).
-    Defaults to namespace_for_slot(CHAOS_SLOT), so a CHAOS_SLOT-unset
-    invocation renders exactly what it rendered before slot support
-    existed. Job name is derived from CHAOS_SLOT (via wrk2_job_name), not
-    from `namespace` -- if a caller passes an explicit `namespace` that
-    doesn't correspond to CHAOS_SLOT, the Job name won't reflect it; slot
-    and namespace are meant to be driven together via CHAOS_SLOT."""
+    """Render the wrk2 Job YAML from the template.
+
+    namespace sets both where the Job runs and which nginx-thrift Service it
+    targets, and defaults to the CHAOS_SLOT namespace. The Job name always
+    follows CHAOS_SLOT, so an explicit namespace should match it.
+    """
     with open(WRK2_TEMPLATE) as f:
         template = f.read()
 
@@ -622,8 +582,7 @@ def parse_wrk2_output(log_text: str) -> dict:
     for line in log_text.split("\n"):
         for pct_str, key in percentile_map.items():
             if pct_str + "%" in line:
-                # wrk2 prints m (minutes) and h under extreme queueing; a
-                # parser that only knows us/ms/s silently records 0
+                # wrk2 switches to m (minutes) and h under heavy queueing.
                 m = re.search(r'([\d.]+)(us|ms|s|m|h)\b', line)
                 if m:
                     val = float(m.group(1))
@@ -740,30 +699,22 @@ def compute_derived_metrics(phases: dict) -> dict:
 # Protocol Executors
 ################################################################################
 
-# Warm-up after a state reset: freshly recreated stores mean cold caches,
-# empty connection pools, and index builds; without an excluded warm-up
-# window, wrk2's corrected latency histogram absorbs minutes-scale cold-start
-# queueing (pilot: p99 of 1.96 MINUTES on the first post-reset run).
+# Warm-up after a state reset. Recreated stores start with cold caches, empty
+# connection pools and index builds, and without an excluded warm-up wrk2's
+# corrected latency absorbs minutes of cold-start queueing.
 WARMUP_DURATION = int(os.environ.get("CHAOS_WARMUP_S", "120"))
 
 
 def run_warmup(label: str, run_number: int,
                namespace: str = namespace_for_slot(CHAOS_SLOT)) -> float | None:
     """Drive wrk2 load for WARMUP_DURATION seconds and discard the results.
-    Not a recorded phase: nothing is parsed or persisted. No-op (returns
-    None) when CHAOS_WARMUP_S=0.
 
-    Returns the wall-clock time this function returns (i.e. warmup traffic
-    fully stopped and its Job is cleaned up). Callers use this as the
-    sidecar's pre-window start instead of a hardcoded "-60s before
-    baseline_start" -- that fixed offset assumed >=60s would elapse between
-    warmup ending and baseline_start, but the actual gap is ~15-20s (a few
-    kubectl round-trips + a short settle sleep), so -60s reached back into
-    the tail of the warmup job's own traffic for every run collected before
-    this fix (audit finding, Aug 15; confirmed via real run timestamps: the
-    60s window consistently overlapped ~40s of live warmup load). Threading
-    the true end-of-warmup timestamp through eliminates the overlap
-    structurally instead of guessing a safe buffer.
+    Nothing is parsed or saved. Returns the time the warm-up Job was cleaned
+    up, which callers use as the start of the sidecar window so it holds no
+    warm-up traffic. Returns None when CHAOS_WARMUP_S=0. Component 1's
+    sidecars were collected with an earlier fixed 60 s pre-window that
+    overlaps the end of warm-up (analysis/PREREGISTRATION.md, Component 1
+    amendment 5).
     """
     if WARMUP_DURATION <= 0:
         return None
@@ -784,15 +735,11 @@ def run_warmup(label: str, run_number: int,
 
 def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: bool,
                    namespace: str = namespace_for_slot(CHAOS_SLOT)) -> dict:
-    """Run wrk2 load for duration_s with no fault injection at all. Used by
-    overhead-isolation baseline/idle configs. Returns a dict with a single
-    "load" phase plus "_window" timing metadata (consumed by the caller to
-    drive write_timeseries_sidecar, then discarded before the run JSON is
-    written).
+    """Run wrk2 load for duration_s with no fault (overhead baseline and idle configs).
 
-    `namespace` defaults to namespace_for_slot(CHAOS_SLOT): callers that
-    don't pass it explicitly automatically get slot-aware behavior from the
-    CHAOS_SLOT env var (unset/"0" -> unchanged default-namespace behavior).
+    Returns {"phases": {"load": ...}, "wrk2": ..., "_window": ...}. The caller
+    passes _window to write_timeseries_sidecar and drops it before saving the
+    run JSON. namespace defaults to the CHAOS_SLOT namespace.
     """
     warmup_end = run_warmup(label, run_number, namespace)
 
@@ -825,9 +772,7 @@ def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: 
         result["wrk2"]["raw_output"] = wrk2_logs[-5000:] if len(wrk2_logs) > 5000 else wrk2_logs
 
         result["_window"] = {
-            # Use the real warmup-end timestamp when warmup ran (eliminates
-            # the overlap; see run_warmup's docstring), else fall back to
-            # the original -60s heuristic when warmup is disabled.
+            # End of warm-up, or 60 s before the load when warm-up is off.
             "start": warmup_end if warmup_end is not None else load_start - 60,
             "end": load_end,
             "fault_start": None,
@@ -840,34 +785,19 @@ def run_flat_load(label: str, run_number: int, duration_s: int, prom_available: 
 
 
 def render_experiment_manifest(experiment_path: Path, namespace: str) -> Path:
-    """Return a fault-manifest path targeting `namespace`.
+    """Return a fault manifest path that targets namespace.
 
-    The 24 static YAMLs under experiments/{chaos-mesh,litmus}/ hardcode
-    "social-network" in both metadata.namespace and the pod-selector field
-    (selector.namespaces for Chaos Mesh, spec.appinfo.appns for Litmus) --
-    kubectl's -n flag does not override metadata.namespace, and the selector
-    field controls fault TARGETING independently, so both must change for a
-    slot to actually fault-inject into its own namespace instead of slot 0's.
+    The 24 static manifests under experiments/{chaos-mesh,litmus}/ hardcode
+    "social-network" in metadata.namespace and in the pod selector
+    (selector.namespaces for Chaos Mesh, spec.appinfo.appns for LitmusChaos).
+    kubectl -n overrides neither, so both are rewritten.
 
-    When namespace is the default ("social-network"), returns experiment_path
-    unchanged -- byte-for-byte original behavior, no temp file, no rewrite.
-    Otherwise renders a substituted copy to a temp file and returns that path;
-    caller is responsible for cleanup (not done here, since the same
-    experiment_path is applied and deleted multiple times across one
-    run_fault_protocol call and cleanup must happen once, at the end).
-
-    Idempotent: run-campaign.py's own render_manifest() already substitutes
-    slot namespaces before writing _manifest-injection-N.yaml (added for the
-    Component 3 500-injection campaign study), so this can be called on a
-    manifest that is already namespace-correct. NAMESPACE ("social-network")
-    is a literal string-prefix of every non-zero slot's namespace
-    ("social-network-1", "social-network-2", ...), so a blind
-    text.replace(NAMESPACE, namespace) on already-substituted text doubles
-    the suffix ("social-network-2" -> "social-network-2-2"), producing a
-    namespace that doesn't exist -- found live 2026-08-17 after every fault
-    application in slots 1/2 had been silently failing (NotFound) since
-    campaign launch, because the failure's return value is discarded by the
-    caller. Detect the already-substituted case and no-op.
+    For the default namespace the original path is returned. Otherwise a
+    substituted copy is written to a temp directory and its path returned;
+    the caller removes it. A manifest that already targets namespace, such as
+    one from run-campaign.py's render_manifest, is returned unchanged,
+    because substituting again would turn "social-network-2" into
+    "social-network-2-2".
     """
     if namespace == NAMESPACE:
         return experiment_path
@@ -885,30 +815,23 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
                         baseline_s: int, fault_s: int, recovery_s: int, cooldown_s: int,
                         prom_available: bool, post_fault_restart: str | None = None,
                         namespace: str = namespace_for_slot(CHAOS_SLOT)) -> dict:
-    """Execute baseline -> fault -> recovery -> [cooldown] against a wrk2
-    load generator running for baseline_s+fault_s+recovery_s seconds.
+    """Run warm-up, then baseline, fault, recovery and optional cooldown under wrk2 load.
 
-    Used by --mode benchmark (durations = BASELINE/FAULT/RECOVERY/COOLDOWN_DURATION,
-    cooldown_s > 0), --mode overhead's "fault" config (same durations), and
-    run-campaign.py (CAMPAIGN_*_DURATION, cooldown_s = 0 -> cooldown phase
-    skipped entirely).
+    One wrk2 Job runs for baseline_s + fault_s + recovery_s. --mode benchmark
+    and the overhead fault config pass the four-phase durations;
+    run-campaign.py passes the CAMPAIGN_* durations with cooldown_s=0, which
+    skips the cooldown.
 
-    Returns {"phases", "wrk2", "derived", "_window"}. "_window" carries the
-    full-run timing (baseline_start - 60s through the last phase's end, plus
-    exact fault start/end) for the caller to hand to write_timeseries_sidecar;
-    callers should pop it before persisting the run's own JSON so that
-    schema stays exactly what it was pre-refactor.
+    Returns {"phases", "wrk2", "derived", "_window"}. _window holds the
+    sidecar window (end of warm-up, or 60 s before baseline when warm-up is
+    off, through the last phase) and the fault start and end. The caller
+    passes it to write_timeseries_sidecar and drops it before saving the run
+    JSON.
 
-    Does not manage the Prometheus port-forward (caller's responsibility,
-    since a campaign wants one port-forward across all 10 injections rather
-    than one per injection). Does manage wrk2 Job and fault-manifest cleanup
-    per invocation via its own finally block, so it is safe to call this
-    repeatedly against the same cluster.
-
-    `namespace` defaults to namespace_for_slot(CHAOS_SLOT): callers that
-    don't pass it explicitly automatically get slot-aware behavior from the
-    CHAOS_SLOT env var (unset/"0" -> unchanged default-namespace behavior).
-    Explicit namespace= callers are unaffected by CHAOS_SLOT.
+    Raises RuntimeError if the fault manifest cannot be applied. The caller
+    manages the Prometheus port-forward. The wrk2 Job and fault manifest are
+    always cleaned up, so repeated calls are safe. namespace defaults to the
+    CHAOS_SLOT namespace.
     """
     warmup_end = run_warmup(label, run_number, namespace)
 
@@ -916,10 +839,7 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
     total_load_duration = baseline_s + fault_s + recovery_s
     wrk2_yaml = render_wrk2_job(label, run_number, total_load_duration, namespace=namespace)
 
-    # Fault manifests hardcode namespace: social-network in both
-    # metadata.namespace and the pod selector -- render a per-slot copy so
-    # slot!=0 actually targets its own namespace. No-op (same path) at the
-    # default namespace. See render_experiment_manifest docstring.
+    # Per-slot copy of the manifest; same path at the default namespace.
     manifest_path = render_experiment_manifest(experiment_path, namespace)
 
     cleanup_wrk2_job(job_name, namespace)
@@ -949,12 +869,8 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
         # Phase 2: Inject fault
         print(f"\n  [Phase 2] FAULT ({fault_s}s) - Injecting {label}...")
         fault_start = time.time()
-        # Must raise on failure, not just log: a swallowed False here means
-        # the protocol sleeps out the fault window with no fault active and
-        # records weakness signals from what is really baseline behavior --
-        # this exact silent-continue pattern let a namespace-doubling bug
-        # (see render_experiment_manifest) corrupt every slot-1/2 injection
-        # from campaign launch to 2026-08-17 before it was caught.
+        # Raise on failure. Continuing would record a fault window with no
+        # fault active.
         if not kubectl_apply_file(str(manifest_path)):
             raise RuntimeError(f"fault manifest apply failed for {label} (namespace={namespace})")
         print(f"    Fault injected at {time.strftime('%H:%M:%S')}")
@@ -994,8 +910,7 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
 
         window_end = recovery_end
 
-        # Phase 4: Cooldown (no metrics collection, just wait). Skipped
-        # entirely when cooldown_s == 0 (campaign mode).
+        # Phase 4: Cooldown, no metrics. Skipped when cooldown_s == 0.
         if cooldown_s > 0:
             print(f"\n  [Phase 4] COOLDOWN ({cooldown_s}s)...")
             time.sleep(cooldown_s)
@@ -1013,15 +928,15 @@ def run_fault_protocol(experiment_path: Path, label: str, run_number: int,
         results["derived"] = compute_derived_metrics(results["phases"])
 
         results["_window"] = {
-            # See run_flat_load's identical fix + run_warmup's docstring.
+            # End of warm-up, or 60 s before baseline when warm-up is off.
             "start": warmup_end if warmup_end is not None else baseline_start - 60,
             "end": window_end,
             "fault_start": fault_start,
             "fault_end": fault_end,
         }
     finally:
-        # Cleanup (always, even on exception/KeyboardInterrupt propagating
-        # to the caller -- caller decides whether to catch and record it).
+        # Always clean up, also when an exception or KeyboardInterrupt
+        # propagates to the caller.
         cleanup_wrk2_job(job_name, namespace)
         kubectl_delete_file(str(manifest_path))
         if manifest_path != experiment_path:

@@ -2,59 +2,43 @@
 """
 Component 1 statistical analysis (analysis/PREREGISTRATION.md).
 
-Aggregates the real 720 experiment JSON files (2 tools x 12 scenarios x
-n=30 reps each, crossover-allocated across bench-a/bench-b per Component 1
-amendment item 1 -- each cluster runs BOTH tools, 15 reps each, in
-counterbalanced order) from
-data-v2/{bench-a,bench-b}/{chaos-mesh,litmus}/{scenario}/run-*.json,
-computes the pre-registered confirmatory analyses, and writes the CSVs that
-tables.py and figures.py read. This script is the single source of
-statistical truth for Component 1 -- tables/figures must not independently
-reload raw JSON or recompute statistics, to avoid the exact
-figure/table/text inconsistency risk a prior paper in this portfolio was
-rejected over.
+Reads the 720 run files (2 tools x 12 scenarios x 30 reps) from
+data-v2/{bench-a,bench-b}/{chaos-mesh,litmus}/{scenario}/run-*.json. Under
+the crossover allocation (Component 1 amendment item 1) each cluster runs
+both tools, 15 reps each, in counterbalanced order. Computes the
+pre-registered confirmatory analyses and writes the CSVs that tables.py and
+figures.py read. Those scripts never reload raw JSON or recompute
+statistics, so tables, figures and text stay consistent.
 
 Confirmatory analyses (PREREGISTRATION.md, "Confirmatory analyses"):
-  1. Two-sided Mann-Whitney U comparing tools, per scenario, n=30 per arm
-     (UNPAIRED -- this replaces a prior draft of this script that used a
-     paired Wilcoxon signed-rank test on n=5, the exact design a peer
-     reviewer flagged as underpowered in this paper's original submission;
-     Mann-Whitney U is what is actually pre-registered now).
-  2. Holm-Bonferroni within each metric family (12 scenario-level tests per
-     metric; the primary-metric family is throughput_rps, confirmatory;
-     secondary-metric families -- p99 latency, error rate, pod restarts --
-     are each their own family, reported as supporting evidence).
-  3. Cliff's delta per scenario, 95% BCa bootstrap CI (10,000 resamples).
-  4. Medians/IQRs (not means) reported for all skewed metrics; percentage
-     differences reported only alongside their CI.
+  1. Two-sided, unpaired Mann-Whitney U comparing tools per scenario, n=30
+     per arm.
+  2. Holm-Bonferroni within each metric family (12 scenario tests per
+     metric). Throughput is the primary, confirmatory family. p99 latency,
+     error rate, recovery time and pod restarts are secondary families.
+  3. Cliff's delta per scenario with a 95% BCa bootstrap CI (10,000
+     resamples), or a percentile bootstrap where BCa is undefined.
+  4. Medians and IQRs, not means, for skewed metrics.
 
-NOTE on the primary metric: both tools' wrk2 load generator runs as a
-SINGLE job spanning baseline+fault+recovery (~480s: 300+120+60). Amendment
-item 6c discloses this same single-wrk2-job characteristic for Component 4's
-ground truth; it applies identically here -- throughput_rps is an aggregate
-over the whole protocol window, not isolated to the ~120s fault phase alone.
-This does not invalidate the tool-vs-tool comparison (both arms are measured
-identically, so the comparison is apples-to-apples), but the manuscript
-methods section must describe the metric accurately rather than as literally
-fault-phase-isolated.
+Throughput: wrk2 runs as one job spanning baseline, fault and recovery
+(~480 s: 300 + 120 + 60), so throughput_rps covers the whole window, not the
+120 s fault phase alone. Both tools are measured the same way, so the tool
+comparison is like for like.
 
-NOTE on recovery time: no continuous "time to recover" field is recorded
-anywhere in the pipeline (only Component 3's boolean recovery_over_60s
-signal exists, and that's a different component). This script computes one
-from the recorded per-phase CPU timeseries (infra_metrics.cpu_usage): the
-elapsed time from fault end until the mean CPU across faulted pods first
-returns to within 20% of that same run's own baseline-phase CPU mean
-(matching Component 3's recovery_over_60s threshold, chaoslib.py, for
-consistency), right-censored at the 60s recovery-phase length if it never
-recovers within the window. This is a NEW operational definition invented
-for this analysis, not previously specified anywhere in
-PREREGISTRATION.md, and must be disclosed as such in the manuscript before
-being reported as a confirmatory or even labelled secondary result.
+Recovery time: no recovery-time field is recorded, so this script derives
+one from the per-phase CPU series (infra_metrics.cpu_usage, per pod across
+the social-network namespace). It is the time from fault end until the
+per-timestep mean CPU across pods first falls to within 20% of the run's
+baseline-phase mean (the same 1.2x threshold as Component 3's
+recovery_over_60s signal in scripts/run-campaign.py), right-censored at the
+60 s recovery phase. Runs without per-run infrastructure metrics get None.
+This definition is not in PREREGISTRATION.md.
 
 Usage:
     python3 analysis/analyze.py
 
 Outputs (analysis/results/):
+    runs_long.csv            one row per run, all metrics (input to figures.py)
     summary_stats.csv        per (tool, scenario) descriptive stats
     tool_summary.csv         per-tool overall descriptive stats
     category_comparison.csv  per (tool, category) aggregation
@@ -80,7 +64,7 @@ TOOLS = ("chaos-mesh", "litmus")
 N_PER_ARM = 30
 BOOTSTRAP_RESAMPLES = 10_000
 BOOTSTRAP_SEED = 42
-RECOVERY_CPU_TOLERANCE = 1.2  # matches chaoslib.py's recovery_over_60s threshold
+RECOVERY_CPU_TOLERANCE = 1.2  # same threshold as recovery_over_60s in scripts/run-campaign.py
 RECOVERY_WINDOW_S = 60
 
 SCENARIO_NAMES = {
@@ -104,11 +88,10 @@ TOOL_LABELS = {"chaos-mesh": "Chaos Mesh", "litmus": "LitmusChaos"}
 # ---------------------------------------------------------------------------
 
 def _cpu_series(phase_data: dict) -> list[tuple[float, float]]:
-    """Flatten a phase's per-pod cpu_usage series into [(ts, value), ...]
-    across all pods, sorted by timestamp. Used only where order doesn't
-    matter (e.g. a flat mean over a whole phase) -- NOT for walking a
-    recovery threshold, since a single pod's reading at a shared timestamp
-    is not the cross-pod state at that instant. See _cpu_by_timestep_mean."""
+    """Flatten a phase's per-pod cpu_usage series into one timestamp-sorted
+    [(ts, value), ...] list. Use it only where order does not matter, such
+    as a whole-phase mean. For a recovery threshold use
+    _cpu_by_timestep_mean."""
     infra = phase_data.get("infra_metrics") or {}
     out = []
     for pod in infra.get("cpu_usage", []):
@@ -122,13 +105,9 @@ def _cpu_series(phase_data: dict) -> list[tuple[float, float]]:
 
 def _cpu_by_timestep_mean(phase_data: dict) -> list[tuple[float, float]]:
     """Per-timestep mean CPU across pods within a phase, sorted by timestamp.
-    Unlike _cpu_series (which interleaves all pods' samples into one
-    timestamp-sorted list), this groups samples sharing a timestamp so each
-    entry reflects the whole pod set at that instant, not whichever single
-    pod's sample happened to sort next. Required for recovery-threshold
-    walking: a flattened multi-pod series lets an idle/unrelated pod's
-    near-zero reading satisfy the threshold immediately, which is the bug
-    found in a 2026-08-18 audit (every run reported ~0s recovery time)."""
+    Each entry covers every pod at that instant. In a flattened multi-pod
+    series, one idle pod's near-zero sample would cross the recovery
+    threshold at once."""
     infra = phase_data.get("infra_metrics") or {}
     by_ts: dict[float, list[float]] = {}
     for pod in infra.get("cpu_usage", []):
@@ -158,11 +137,11 @@ def _mean_mem_mb(phase_data: dict) -> float | None:
 
 
 def _recovery_time_s(record: dict, baseline_cpu: float | None) -> float | None:
-    """Elapsed seconds from fault end until mean CPU across recovery-phase
-    samples first drops back to <= baseline_cpu * RECOVERY_CPU_TOLERANCE.
-    Right-censored at RECOVERY_WINDOW_S (reported as exactly that value,
-    i.e. "did not recover within the window") if the threshold is never
-    crossed, or if baseline_cpu is unavailable/zero."""
+    """Seconds from fault end until the per-timestep mean CPU in the
+    recovery phase first drops to <= baseline_cpu * RECOVERY_CPU_TOLERANCE.
+    Returns RECOVERY_WINDOW_S (right-censored) if the threshold is never
+    crossed, and None if baseline_cpu is missing or zero or the recovery
+    phase has no CPU series."""
     recovery = record["_phases"].get("recovery", {})
     fault_end = recovery.get("start")
     series = _cpu_by_timestep_mean(recovery)
@@ -273,12 +252,10 @@ def _percentile_bootstrap_ci(x: np.ndarray, y: np.ndarray, rng) -> tuple[float, 
 
 
 def cliffs_delta_bca_ci(x: list[float], y: list[float]) -> tuple[float, float, str]:
-    """Returns (lo, hi, method). BCa's acceleration constant is undefined
-    for degenerate/perfectly-separated samples (delta = +-1.0, the jackknife
-    denominator divides by zero) -- scipy warns rather than raises in that
-    case and returns NaN, so NaN must be checked explicitly, not just
-    caught via exception, or the CI silently vanishes for exactly the
-    highest-stakes (most separated, most significant) results."""
+    """Return (lo, hi, method). BCa's acceleration constant is undefined
+    under perfect separation (delta = +-1.0, the jackknife denominator is
+    zero). scipy then warns and returns NaN instead of raising, so NaN is
+    checked explicitly and the CI falls back to a percentile bootstrap."""
     x = np.asarray([v for v in x if v is not None], dtype=float)
     y = np.asarray([v for v in y if v is not None], dtype=float)
     if len(x) < 2 or len(y) < 2:
@@ -293,15 +270,14 @@ def cliffs_delta_bca_ci(x: list[float], y: list[float]) -> tuple[float, float, s
             return lo, hi, "BCa"
     except Exception:
         pass
-    # BCa degenerate (perfect/near-perfect separation) or raised: fall back
-    # to a plain percentile bootstrap rather than silently dropping the CI.
+    # BCa returned NaN or raised: use a percentile bootstrap instead.
     lo, hi = _percentile_bootstrap_ci(x, y, rng)
     return lo, hi, "percentile_fallback"
 
 
 def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> tuple[list[float], list[bool]]:
     """Holm-Bonferroni step-down correction. Returns (adjusted_p, significant)
-    in the ORIGINAL input order."""
+    in the input order."""
     m = len(p_values)
     order = sorted(range(m), key=lambda i: p_values[i])
     adjusted = [0.0] * m
@@ -444,7 +420,7 @@ def compute_statistical_tests(records: list[dict]) -> list[dict]:
                 "delta_ci_method": ci_method,
             })
 
-    # Holm-Bonferroni WITHIN each metric family separately (PREREGISTRATION.md,
+    # Holm-Bonferroni within each metric family separately (PREREGISTRATION.md,
     # Confirmatory analysis #2: "12 scenario-level tests per metric").
     all_rows = []
     for metric, rows in per_family_rows.items():
@@ -472,9 +448,9 @@ def write_csv(rows: list[dict], filename: str) -> None:
 
 
 def write_runs_long(records: list[dict]) -> None:
-    """One row per run, all metrics -- the raw-distribution source for
-    figures.py (boxplots etc. need per-run values, not just medians/IQRs),
-    so figures never re-parse the original run JSON themselves."""
+    """Write runs_long.csv: one row per run with all metrics. figures.py
+    needs per-run values for box plots and reads them here instead of
+    parsing run JSON."""
     fields = ["cluster", "tool", "scenario", "scenario_name", "category", "run",
               "throughput_rps", "latency_p50", "latency_p99", "latency_mean",
               "error_rate", "pod_restarts", "cpu_spike_pct", "memory_spike_mb",

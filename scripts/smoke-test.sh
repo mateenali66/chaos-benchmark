@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 ################################################################################
-# Smoke Test - End-to-End Pipeline Validation
-# Validates: cluster, RBAC, social graph, wrk2, chaos tools, Prometheus
+# Smoke test of a deployed cluster: node and pod counts, Litmus RBAC and
+# ChaosExperiments, social graph data, Chaos Mesh and LitmusChaos pods with a
+# P1 apply/delete for each tool, the Prometheus API and container metrics,
+# Grafana and Jaeger. It checks the slot 0 namespace social-network only.
+# It expects both chaos tools on one cluster, so a cluster set up by setup.sh
+# with its default single tool fails the checks for the other tool.
 # Usage: ./scripts/smoke-test.sh
 ################################################################################
 set -euo pipefail

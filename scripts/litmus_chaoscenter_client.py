@@ -1,29 +1,25 @@
 #!/usr/bin/env -S python3 -u
-"""ChaosCenter GraphQL client for the Litmus LLM fault-selection arm.
+"""ChaosCenter GraphQL client.
 
-Component 3's llm strategy needs to "select and launch" pre-registered
-experiments via the same operation surface the litmuschaos/litmus-mcp-server
-exposes (registerInfra, createChaosExperiment, runChaosExperiment,
-getExperimentRun), per the design decision in ../jss/ML_ARM_DESIGN.md and
-the R2 review response. This module re-implements that same GraphQL surface
-directly in Python rather than shelling out to the Go MCP binary, because:
+Used by register-chaoscenter-experiments.py to register the 36 fault-space
+candidates, and by run-campaign.py's optional catalog check. No campaign
+injection runs through ChaosCenter: the LLM arms call Amazon Bedrock
+directly and every injection is applied from a local manifest. The
+LitmusChaos MCP server was not used either. Its experiment-creation tool is
+disabled at commit 45acf1a7, and the workflow manifest its handler builds
+calls a `chaos-runner` command that the litmuschaos/go-runner image does not
+contain. create_chaos_experiment builds the same manifest, so the registered
+experiments serve as a catalog only. See the erratum in
+analysis/PREREGISTRATION.md. run_chaos_experiment, get_experiment_run and
+wait_for_completion are not called anywhere in this repository.
 
-  1. The MCP server authenticates with a single static JWT (24h TTL) passed
-     at process startup; a multi-day campaign needs re-authentication, which
-     the MCP server does not support. This client re-logs-in transparently
-     on a 401 or when the cached token is near expiry.
-  2. All mutation/query shapes below were extracted directly from
-     litmuschaos/litmus-mcp-server's handlers.go (commit 45acf1a7, the same
-     commit ML_ARM_DESIGN.md pins) and verified against the live ChaosCenter
-     instance on is-chaos-ml -- this is not a guess at the schema, it is the
-     same surface the MCP server itself calls, just with our own token
-     lifecycle wrapped around it.
+The query and mutation shapes follow litmus-mcp-server's handlers.go at
+commit 45acf1a7. The client logs in again on a 401 or shortly before the
+token expires.
 
-Chaos infrastructure was registered interactively (see
-litmus-credentials.json for the environment_id / infra_id / project_id).
-This client assumes that registration already exists; it does not perform
-it (registerInfra requires a Referer header and manifest-apply step that is
-a one-time setup action, not a per-call operation).
+The login and the project and infrastructure ids come from
+litmus-credentials.json, which is not committed. Registering the chaos infrastructure is a one-time
+manual step and is not done here.
 """
 
 from __future__ import annotations
@@ -36,9 +32,8 @@ from pathlib import Path
 
 CREDENTIALS_PATH = Path(__file__).resolve().parent.parent / "litmus-credentials.json"
 
-# Fault names known to be pre-registered as ChaosExperiment CRDs (see
-# post-deploy.sh) and therefore valid faultName values for
-# createChaosExperiment's faults[] entries.
+# Fault names installed as ChaosExperiment resources by post-deploy.sh, and
+# so valid faultName values for createChaosExperiment.
 KNOWN_FAULT_NAMES = {
     "pod-delete", "container-kill", "pod-network-latency", "pod-network-loss",
     "pod-network-partition", "pod-cpu-hog-exec", "pod-memory-hog-exec",
@@ -57,10 +52,9 @@ class ChaosCenterClient:
     def __init__(self, credentials_path: Path = CREDENTIALS_PATH,
                  graphql_url: str | None = None, auth_url: str | None = None):
         self.creds = json.loads(credentials_path.read_text())
-        # Callers running from outside the cluster (e.g. this laptop via
-        # kubectl port-forward) must pass localhost URLs explicitly; the
-        # credentials file's *_endpoint_* fields are the in-cluster DNS
-        # names, only reachable from a pod running inside is-chaos-ml.
+        # Defaults are localhost URLs on the credentials file's local ports,
+        # for use through kubectl port-forward. The file's *_endpoint_*
+        # fields are in-cluster DNS names and are not used here.
         self.graphql_url = graphql_url or f"http://localhost:{self.creds['graphql_service_local_port']}/query"
         self.auth_url = auth_url or f"http://localhost:{self.creds['auth_service_local_port']}"
         self.project_id = self.creds["project_id"]
@@ -123,11 +117,13 @@ class ChaosCenterClient:
 
     def create_chaos_experiment(self, name: str, fault_name: str, target_service: str,
                                  env: dict, description: str = "") -> str:
-        """Register a single-fault experiment (Argo Workflow manifest, same
-        shape litmus-mcp-server's createChaosExperiment builds) and return
-        its experimentID. Idempotency is the caller's responsibility (this
-        always creates a new experiment; see register_fault_space_experiments
-        for the "skip if a same-named one already exists" wrapper)."""
+        """Register a single-fault experiment and return its experimentID.
+
+        The Argo Workflow manifest has the shape litmus-mcp-server builds,
+        including its `chaos-runner` command (see the module docstring). This
+        always creates a new experiment; register-chaoscenter-experiments.py
+        skips candidates that are already registered.
+        """
         if fault_name not in KNOWN_FAULT_NAMES:
             raise ValueError(f"fault_name {fault_name!r} is not a pre-registered "
                               f"ChaosExperiment CRD: {sorted(KNOWN_FAULT_NAMES)}")
@@ -176,12 +172,12 @@ class ChaosCenterClient:
         return data["createChaosExperiment"]["experimentID"]
 
     def list_experiments(self, page_size: int = 100) -> list[dict]:
-        """Returns every registered experiment. ChaosCenter silently caps
-        an unpaginated request({}) to a 15-item page -- verified live
-        2026-08-16: totalNoOfExperiments correctly reported 36 while the
-        experiments[] array held only 15 -- so this always passes an
-        explicit pagination block and loops if a project ever exceeds
-        page_size (this repo's real usage tops out at 36)."""
+        """Return every registered experiment in the project.
+
+        Without an explicit pagination block ChaosCenter returns only 15
+        experiments, so this requests pages of page_size until
+        totalNoOfExperiments is reached.
+        """
         query = """
             query($projectID: ID!, $page: Int!, $limit: Int!) {
                 listExperiment(projectID: $projectID,
@@ -205,8 +201,7 @@ class ChaosCenterClient:
         return experiments
 
     def run_chaos_experiment(self, experiment_id: str) -> str:
-        """Trigger a pre-registered experiment. Returns notifyID (used to
-        poll get_experiment_run)."""
+        """Trigger a registered experiment and return its notifyID for get_experiment_run."""
         mutation = """
             mutation($projectID: ID!, $experimentID: String!) {
                 runChaosExperiment(experimentID: $experimentID, projectID: $projectID) {
@@ -239,9 +234,11 @@ class ChaosCenterClient:
         return data["getExperimentRun"]
 
     def wait_for_completion(self, notify_id: str, timeout_s: int = 300, poll_interval_s: int = 5) -> dict:
-        """Poll get_experiment_run until phase is terminal or timeout_s
-        elapses. Returns the final run dict; phase may be a non-terminal
-        value if timeout_s was reached (caller should check)."""
+        """Poll get_experiment_run until the phase is terminal or timeout_s passes.
+
+        Returns the last run dict. Its phase is not terminal if the timeout
+        was reached.
+        """
         deadline = time.time() + timeout_s
         run = {}
         while time.time() < deadline:

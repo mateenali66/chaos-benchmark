@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ################################################################################
-# Export Experiment Data to S3
-# Syncs local data/ directory to the shared is-chaos-artifacts bucket, keyed
-# under the cluster's own name so all three concurrent clusters
-# (is-chaos-bench-a, is-chaos-bench-b, is-chaos-ml) can write to the same
-# bucket without clobbering each other.
+# One-off export of the local data/ directory to the shared artifacts bucket.
+# The bucket name is the Terraform output s3_bucket of the selected workspace.
+# Files go to s3://<bucket>/<cluster>/data/<timestamp>/, so the three clusters
+# (is-chaos-bench-a, is-chaos-bench-b, is-chaos-ml) can share one bucket.
+# This script reads data/ only. The data-v2/<env> trees are backed up by
+# scripts/watchdogs/s3-sync-loop.sh.
 #
+# Env: AWS_PROFILE (default "default"), AWS_REGION (default ca-central-1).
 # Usage: ./scripts/export-to-s3.sh <bench-a|bench-b|ml>
 ################################################################################
 
@@ -37,9 +39,9 @@ AWS_REGION="${AWS_REGION:-ca-central-1}"
 echo "--- Selecting Terraform workspace '${ENV_NAME}' ---"
 terraform -chdir="$TERRAFORM_DIR" workspace select "$ENV_NAME"
 
-# Get S3 bucket from Terraform output. All three workspaces resolve to the
-# same bucket name (is-chaos-artifacts-<account_id>) whether or not this
-# workspace is the one that owns/creates it (see terraform/main.tf locals).
+# All three workspaces resolve to the same bucket name
+# (is-chaos-artifacts-<account_id>), whichever one creates it (see the locals
+# in terraform/main.tf).
 BUCKET=$(cd "$TERRAFORM_DIR" && terraform output -raw s3_bucket 2>/dev/null)
 
 if [ -z "$BUCKET" ]; then
@@ -60,8 +62,6 @@ echo "Profile:     $AWS_PROFILE"
 echo "Region:      $AWS_REGION"
 echo ""
 
-# Sync data directory (key-prefixed by cluster name so all three clusters can
-# share the one bucket)
 aws s3 sync "$DATA_DIR" "$DEST" \
   --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \

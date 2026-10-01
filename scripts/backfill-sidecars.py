@@ -1,18 +1,19 @@
 #!/usr/bin/env -S python3 -u
 """Regenerate timeseries sidecars whose range queries failed.
 
-The initial revision-campaign runs wrote sidecars after the Prometheus
-port-forward was torn down, so every metric recorded a connection error.
-The window/fault timestamps in the sidecar metadata are correct, and
-Prometheus retains the underlying data (kube-prometheus default retention),
-so the series can be re-queried as long as this runs within the retention
-window.
+Some early runs wrote their sidecars after the Prometheus port-forward had
+closed, so every metric recorded a connection error. The window and fault
+timestamps in the sidecar metadata are still correct, and Prometheus keeps
+the underlying data for its retention period (kube-prometheus default), so
+the series can be re-queried within that period.
 
-Usage (with the target cluster's env active: KUBECONFIG + CHAOS_PROM_PORT):
-  backfill-sidecars.py --data-dir data-v2/bench-a [--dry-run]
+Usage (with the target cluster's environment set: KUBECONFIG,
+CHAOS_PROM_PORT, and CHAOS_DATA_DIR, which chaoslib requires on import):
+  backfill-sidecars.py --data-dir data-v2/bench-a [--dry-run] [--force]
 
-Rewrites only sidecars where every metric is an error; healthy sidecars are
-left untouched. Prints a per-file verdict and a final summary.
+Regenerates sidecars that are missing, unreadable, or have an error on
+every metric (all sidecars with --force). Healthy sidecars are left alone.
+Prints a per-file verdict and a final summary.
 """
 
 import argparse
@@ -36,11 +37,11 @@ def main() -> int:
     ap.add_argument("--data-dir", required=True)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true",
-                    help="regenerate ALL sidecars, not only broken ones (e.g. after a query fix)")
+                    help="regenerate all sidecars, not only broken ones (e.g. after a query fix)")
     args = ap.parse_args()
 
-    # Iterate RUN JSONs, not sidecars: a run whose sidecar was never written
-    # at all must show up here too (bench-b run-3 lesson).
+    # Iterate run JSONs, not sidecars, so a run whose sidecar was never
+    # written is found too.
     todo_missing: list = []
     run_jsons = [p for p in sorted(Path(args.data_dir).rglob("run-*.json"))
                  if ".timeseries." not in p.name]

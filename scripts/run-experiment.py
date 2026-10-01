@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
 """
-Chaos Benchmark Experiment Runner
+Chaos Benchmark experiment runner.
 
---mode benchmark (default, unchanged from the original protocol):
-  Orchestrates a single experiment run for one (tool, scenario, rep):
-    1. Baseline (5 min) - steady-state metrics under load
-    2. Fault injection (2 min) - apply chaos experiment
-    3. Recovery (1 min) - remove fault, measure TTR
-    4. Cooldown (1 min) - ensure stability
-  Results: data/{tool}/{scenario}/run-N.json (N now goes up to 30, see
-  scripts/run-all-experiments.sh --reps).
+Every run starts with an excluded wrk2 warm-up (CHAOS_WARMUP_S, default
+120 s). Results go under $CHAOS_DATA_DIR.
 
---mode overhead:
-  Runs one rep of one of three overhead-isolation configurations used to
-  separate "cost of running the chaos tool" from "cost of the fault itself":
-    --overhead-config baseline  10s wrk2 warm-up + 300s load, NO chaos tool
-                                 installed, NO fault. Caller (run-overhead.sh)
-                                 must verify the chaos-mesh/litmus namespaces
-                                 do not exist before invoking this.
-    --overhead-config idle      same 300s load window, chaos tool IS
-                                 installed (agents running) but idle, no fault.
-    --overhead-config fault     the existing 4-phase benchmark protocol for a
-                                 single representative scenario (default p1).
-  Results: data/overhead/baseline/run-N.json,
-           data/overhead/{tool}-idle/run-N.json,
-           data/overhead/{tool}-fault/run-N.json
+--mode benchmark (default): one run for one (tool, scenario, rep):
+    1. Baseline (5 min): steady-state metrics under load
+    2. Fault injection (2 min): apply the chaos experiment
+    3. Recovery (1 min): fault removed, system observed under load
+    4. Cooldown (1 min): let the system settle
+  Results: {tool}/{scenario}/run-N.json, N = 1..30.
 
-Every run (either mode) also writes a gzipped raw-Prometheus-timeseries
-sidecar next to its JSON (run-N.timeseries.json.gz) for the ML
-anomaly-detection analysis; see scripts/CAMPAIGN_MODES.md.
+--mode overhead: one rep of one of three configurations that separate the
+cost of running the chaos tool from the cost of the fault itself:
+    --overhead-config baseline  300 s load, no chaos tool installed, no
+                                fault. The caller (run-overhead.sh) must
+                                check that no chaos tool is installed.
+    --overhead-config idle      300 s load, chaos tool installed and idle,
+                                no fault.
+    --overhead-config fault     the 4-phase benchmark protocol for one
+                                scenario (default p1).
+  Results: overhead/baseline/run-N.json,
+           overhead/{tool}-idle/run-N.json,
+           overhead/{tool}-fault/run-N.json
+
+Every run also writes a gzipped Prometheus timeseries sidecar next to its
+JSON (run-N.timeseries.json.gz) for the anomaly-detection analysis; see
+scripts/CAMPAIGN_MODES.md.
 
 Usage:
   python3 run-experiment.py --tool chaos-mesh --scenario p1 --run 1
@@ -54,9 +53,8 @@ import chaoslib
 ################################################################################
 
 def run_experiment(tool: str, scenario: str, run_number: int, dry_run: bool = False):
-    """Run a single --mode benchmark experiment iteration (original protocol,
-    untouched apart from importing shared logic from chaoslib and allowing
-    run numbers up to 30)."""
+    """Run one --mode benchmark experiment for one (tool, scenario, rep).
+    Skips the run if its output file already exists."""
     scenario_lower = scenario.lower()
     scenario_file = chaoslib.SCENARIOS.get(scenario_lower)
     if not scenario_file:
@@ -149,8 +147,8 @@ def run_experiment(tool: str, scenario: str, run_number: int, dry_run: bool = Fa
         json.dump(results, f, indent=2, default=str)
     print(f"\n  Results saved to: {output_file}")
 
-    # Timeseries sidecar for the ML anomaly-detection analysis (best-effort;
-    # never affects run success/failure -- see chaoslib.write_timeseries_sidecar).
+    # Timeseries sidecar for the anomaly-detection analysis. Best effort: it
+    # never changes the run's outcome (see chaoslib.write_timeseries_sidecar).
     if window is not None:
         chaoslib.write_timeseries_sidecar(
             output_file, window["start"], window["end"],
@@ -170,14 +168,11 @@ def run_experiment(tool: str, scenario: str, run_number: int, dry_run: bool = Fa
 
 def run_overhead(overhead_config: str, tool: str | None, scenario: str | None,
                   run_number: int, dry_run: bool = False):
-    """Run a single --mode overhead rep. See module docstring for the three
-    configs. Config folder names are a deliberate departure from the literal
-    "data/overhead/{config}/run-N.json" wording in the brief: "baseline" has
-    no tool (one shared 10-rep set is enough, it never varies by tool), while
-    "idle" and "fault" fold the --tool into the folder name
-    (data/overhead/{tool}-idle/, data/overhead/{tool}-fault/) so that running
-    the overhead study for both tools never overwrites the other's data. See
-    scripts/CAMPAIGN_MODES.md for the full rationale.
+    """Run one --mode overhead rep (see the module docstring for the three
+    configs). "baseline" has no tool, so its folder is overhead/baseline/.
+    "idle" and "fault" put the tool in the folder name
+    (overhead/{tool}-idle/, overhead/{tool}-fault/) so the two tools' runs
+    never overwrite each other. See scripts/CAMPAIGN_MODES.md.
     """
     if overhead_config == "baseline":
         config_label = "baseline"
@@ -319,7 +314,7 @@ Examples:
         """,
     )
     parser.add_argument("--mode", choices=["benchmark", "overhead"], default="benchmark",
-                        help="benchmark = original 4-phase protocol (default); "
+                        help="benchmark = 4-phase protocol (default); "
                              "overhead = overhead-isolation study (see scripts/CAMPAIGN_MODES.md)")
     parser.add_argument("--tool", choices=["chaos-mesh", "litmus"],
                         help="Chaos engineering tool (required for --mode benchmark; "

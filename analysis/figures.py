@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Generate publication-quality figures for Paper 4.
+Component 1 figures, drawn from analysis/results/runs_long.csv.
 
-Outputs to analysis/figures/ as both PDF (vector) and PNG (300 DPI).
+Writes each figure to analysis/figures/ as PDF (vector) and PNG (300 DPI).
 
 Figures:
-    Fig 3: Throughput comparison box plots by scenario and tool
-    Fig 4: Latency p99 comparison bar chart
-    Fig 5: Error rate comparison grouped bar chart
-    Fig 6: CPU and memory overhead heatmap
-    Fig 7: Throughput by fault category (grouped box plots)
+    Fig 3: throughput box plots by scenario and tool
+    Fig 4: p99 latency by scenario (median and IQR, log scale)
+    Fig 5: error rate by scenario
+    Fig 6: CPU and memory spike heatmap
+    Fig 7: throughput box plots by fault category
+    Fig 8: pod restarts by scenario
+    Fig 9: throughput coefficient of variation by scenario
 """
 
 from pathlib import Path
@@ -77,10 +79,9 @@ plt.rcParams.update({
 # ---------------------------------------------------------------------------
 
 def load_data():
-    """Reads analysis/results/runs_long.csv (written by analyze.py) -- does
-    NOT independently reload or reparse raw run JSON, so figures cannot
-    drift out of sync with the tables/statistics analyze.py computed from
-    the same underlying data. Run analysis/analyze.py first."""
+    """Read analysis/results/runs_long.csv, written by analyze.py. Figures
+    never parse raw run JSON, so they stay in sync with the statistics. Run
+    analysis/analyze.py first."""
     path = RESULTS_DIR / "runs_long.csv"
     if not path.exists():
         raise FileNotFoundError(f"{path} not found -- run analysis/analyze.py first")
@@ -115,11 +116,11 @@ def save_fig(fig, name):
 # Figure 3: Throughput box plots by scenario
 # ---------------------------------------------------------------------------
 
-# Full-page-width (cas-dc \textwidth = 494.5pt = 6.87in) print style for
-# fig3/fig4, which the manuscript places in figure* environments. figsize is
-# chosen so the tight-bbox PDF comes out ~6.87in wide, i.e. LaTeX scales it by
-# ~1.0 and these point sizes are the final printed sizes. Applied via
-# rc_context so the other figures in this module keep the module-wide style.
+# Print style for fig3 and fig4, which span the full page width (figure*,
+# cas-dc \textwidth = 494.5pt = 6.87in). figsize makes the tight-bbox PDF
+# ~6.87in wide, so LaTeX scales it by ~1.0 and these point sizes are the
+# printed sizes. Applied through rc_context so the other figures keep the
+# module-wide style.
 FULL_WIDTH_RC = {
     "font.size": 8,
     "axes.labelsize": 9,
@@ -132,12 +133,9 @@ FULL_WIDTH_FIGSIZE = (6.9, 3.4)
 
 
 def _legend_above(ax, handles, y_offset_pt):
-    """Horizontal legend outside the axes, centred above the top spine.
-
-    y_offset_pt lifts it clear of anything drawn directly above the spine
-    (fig3's category labels). Outside the axes it cannot cover data: the
-    2026-08-18 loc="upper right" legend hid fig3's gRPC Unavailable boxes and
-    the top of LitmusChaos's HTTP Abort 503 box (found in a 2026-09-30 QA pass).
+    """Horizontal legend centred above the top spine, outside the axes so it
+    cannot cover data. y_offset_pt lifts it clear of anything drawn just
+    above the spine (fig3's category labels).
     """
     import matplotlib.transforms as mtransforms
     offset = mtransforms.offset_copy(ax.transAxes, fig=ax.figure, x=0, y=y_offset_pt, units="points")
@@ -182,18 +180,14 @@ def _fig3_throughput_boxplots(df):
             for line in bp[element]:
                 line.set_color("black")
                 line.set_linewidth(0.8)
-        # NOT bp["medians"][0].set_label(tool): the median lines are
-        # recolored black two lines above, so a legend built from them shows
-        # black swatches for both tools regardless of box color (found in a
-        # 2026-08-18 visual QA pass) -- use explicit color-matched Patches
-        # instead, same pattern already used correctly in fig7 below.
+        # The legend uses color-matched Patches (below), not the median
+        # lines, which are black for both tools.
 
     ax.set_xticks(positions)
     ax.set_xticklabels(scenario_labels, rotation=45, ha="right", rotation_mode="anchor")
     ax.set_ylabel("Throughput (requests/second)")
     ax.set_axisbelow(True)  # grid behind the boxes, not drawn through them
-    # No in-figure title: the LaTeX caption ("Throughput comparison across
-    # all 12 fault scenarios") already carries it.
+    # No in-figure title. The LaTeX caption carries it.
     from matplotlib.patches import Patch
     legend_elements = [Patch(facecolor=TOOL_COLORS[t], alpha=0.7, label=t) for t in ["Chaos Mesh", "LitmusChaos"]]
 
@@ -202,11 +196,11 @@ def _fig3_throughput_boxplots(df):
     for b in category_bounds:
         ax.axvline(x=b - 0.5, color="gray", linewidth=0.5, linestyle="--", alpha=0.5)
 
-    # Category labels just ABOVE the top spine (x in data, y in axes
-    # fraction). They used to sit at ylim[0] - 5 in data units, which printed
-    # them over the rotated x tick labels. Inside the axes is not an option:
-    # the boxes reach ~120 rps, i.e. the top of the plot, in every category.
-    # Network (n1-n5 at positions 3-7) is centred at 5, not the old 5.5.
+    # Category labels sit just above the top spine (x in data coordinates, y
+    # in axes fraction). Below the axes they would hit the rotated tick
+    # labels, and inside it they would hit the boxes, which reach ~120 rps,
+    # the top of the plot, in every category. Network (n1-n5, positions 3-7)
+    # is centred at 5.
     cat_positions = [1, 5, 8.5, 10.5]
     cat_names = ["Pod/Container", "Network", "Resource", "Application"]
     for pos, name in zip(cat_positions, cat_names):
@@ -225,17 +219,13 @@ def _fig3_throughput_boxplots(df):
 # ---------------------------------------------------------------------------
 
 def fig4_latency_comparison(df):
-    """Grouped bar chart of p99 latency per scenario.
+    """Grouped bar chart of p99 latency per scenario: median bars with IQR
+    error bars on a log y-axis.
 
-    Median + IQR error bars (not mean +/- std): p99 latency here is
-    extremely right-skewed (some tool/scenario cells' medians reach tens of
-    thousands of ms against a typical ~100ms baseline), matching
-    PREREGISTRATION.md's own "medians and IQRs, not means, for all skewed
-    metrics" rule -- the previous mean+std version both violated that rule
-    and hard-clipped the y-axis at 500ms with no visual indication,
-    silently cutting off real values by up to two orders of magnitude
-    (found in a 2026-08-18 visual QA pass). Log-scale y-axis given the
-    multi-order-of-magnitude range across scenarios.
+    p99 latency is heavily right-skewed (some cells' medians reach tens of
+    thousands of ms against a steady-state p99 of ~83 ms), so the chart uses
+    medians and IQRs, as PREREGISTRATION.md requires for skewed metrics. The
+    log scale shows the full range without clipping.
     """
     with plt.rc_context(FULL_WIDTH_RC):
         _fig4_latency_comparison(df)
@@ -273,9 +263,8 @@ def _fig4_latency_comparison(df):
 
     ax.set_xticks(x)
     ax.set_xticklabels(scenario_labels, rotation=45, ha="right", rotation_mode="anchor")
-    # The old title ("p99 Latency Comparison by Fault Scenario (median,
-    # IQR)") duplicated the LaTeX caption except for "median, IQR", which the
-    # caption does not say, so that part moves into the y label.
+    # No in-figure title. "median, IQR" goes in the y label because the
+    # LaTeX caption does not say it.
     ax.set_ylabel("p99 latency (ms, log scale)\nbar = median, error bar = IQR")
     ax.set_yscale("log")
     ax.set_axisbelow(True)  # grid behind the bars, not drawn through them
@@ -347,17 +336,16 @@ def _relative_luminance(rgba):
 def _annotation_color(rgba):
     """White or black, whichever has the higher WCAG contrast ratio against
     the cell colour. The crossover is at luminance ~0.179, so every cell gets
-    at least ~4.6:1 (seaborn's own 0.408 cut-off would put white text on the
-    mid-orange cells at ~2.3:1)."""
+    at least ~4.6:1. seaborn's own 0.408 cut-off would put white text on the
+    mid-orange cells at ~2.3:1."""
     lum = _relative_luminance(rgba)
     contrast_white = 1.05 / (lum + 0.05)
     contrast_black = (lum + 0.05) / 0.05
     return "white" if contrast_white > contrast_black else "black"
 
 
-# Supplementary Figure S2 sits in ONE cas-dc column (\columnwidth = 238.25pt
-# = 3.31in), so the figure is drawn at that width and the point sizes below
-# are the final printed sizes.
+# fig6 is drawn for one cas-dc column (\columnwidth = 238.25pt = 3.31in),
+# so the point sizes below are the printed sizes.
 FIG6_RC = {
     "font.size": 7,
     "axes.titlesize": 8,
@@ -368,17 +356,13 @@ FIG6_RC = {
 
 
 def fig6_overhead_heatmap(df):
-    """Heatmap showing CPU spike and memory spike by scenario and tool.
+    """Heatmap of mean CPU spike and memory spike per scenario and tool.
 
-    Laid out for one column: scenarios are rows and the two tools are columns
-    (the transpose of the old 14in-wide two-panel layout, whose 12-column
-    rows would leave each cell ~0.18in wide at 3.3in). Scenario order (top to
-    bottom) and tool order (left to right) are unchanged, as are the per-cell
-    means, the YlOrRd colormap and each panel's own colour scale. CPU cells
-    are annotated in thousands ("11.5k"): the old ".0f" five-digit values
-    (11521, 11563, 10557, ...) overflowed their cells. Annotation colour is
-    chosen per cell by luminance, because seaborn's automatic choice was
-    printing black on the darkest red cells.
+    Laid out for one column: scenarios are rows and the two tools are
+    columns, with the YlOrRd colormap and a separate colour scale per panel.
+    CPU values are shown in thousands ("11.5k") so five-digit values fit
+    their cells. Text colour is chosen per cell by luminance
+    (_annotation_color).
     """
     with plt.rc_context(FIG6_RC):
         _fig6_overhead_heatmap(df)
@@ -439,8 +423,8 @@ def _fig6_overhead_heatmap(df):
         ax.set_ylabel("")
         ax.set_xticklabels(tool_ticklabels, rotation=0, linespacing=1.0)
         ax.tick_params(axis="both", length=0, pad=2)
-        # The module-wide axes.grid=True used to draw grid lines through the
-        # middle of every cell (at the tick positions).
+        # Turn off the module-wide grid, which would cross every cell at the
+        # tick positions.
         ax.grid(False)
         if ax_idx == 0:
             ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
@@ -493,10 +477,8 @@ def fig7_category_boxplots(df):
                 line.set_color("black")
                 line.set_linewidth(0.8)
 
-    # Create manual legend. loc="upper right" used to overlap the
-    # Application category's boxes (the rightmost, tallest group, driven by
-    # a1/a2's significant tool separation) -- found in a 2026-08-18 visual
-    # QA pass. Placed outside the axes instead.
+    # Manual legend outside the axes. Inside, it would overlap the
+    # Application boxes, the rightmost and tallest group.
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor=TOOL_COLORS["Chaos Mesh"], alpha=0.7, label="Chaos Mesh"),

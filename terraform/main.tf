@@ -1,6 +1,6 @@
 ################################################################################
 # Chaos Benchmark Infrastructure
-# EKS cluster for chaos engineering experiments (Paper 4)
+# VPC, EKS cluster, add-ons and the shared S3 bucket for one cluster workspace
 ################################################################################
 
 locals {

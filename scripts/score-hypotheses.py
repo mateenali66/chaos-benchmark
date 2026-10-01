@@ -1,46 +1,36 @@
 #!/usr/bin/env python3
 """
-Component 4 mechanical scoring (analysis/PREREGISTRATION.md, amendment items
-6-7).
+Component 4 scoring (analysis/PREREGISTRATION.md, Component 4 and amendment
+items 6 and 7).
 
-Scores each of the 540 real Component 4 hypothesis-generation samples
-(data-v2/ml/hypotheses/{arm}/candidate-{id}/sample-{n}.json) against real
-ground truth. Per amendment item 7 (2026-08-18, superseding item 6's original
-pooling rule after a demonstrated confound was found -- see PREREGISTRATION.md
-for the full account, including candidate C14's classification flipping
-between sources), ground truth for each of the 36 fault-space candidates
-comes from Component 3's 500 campaign injections ONLY
+Scores the 540 hypothesis-generation samples
+(data-v2/ml/hypotheses/{arm}/candidate-{id}/sample-{n}.json) against ground
+truth. Ground truth for each of the 36 fault-space candidates comes from
+Component 3's 500 campaign injections only
 (data-v2/ml/campaigns/*/campaign-*/injection-N.json), matched by
-candidate_id. Component 1's 720 runs are no longer pooled in: their protocol
-window (540s, fault = 22% of window) differs from Component 3's (300s, fault
-= 40%), and pooling let Component 1's much larger n drown out Component 3's
-real, protocol-matched signal for the 3 candidates where both sources exist.
-`component1_runs_for()` is retained only for a potential future
-robustness-check appendix, not used for the primary ground truth. A
-candidate with zero real executions is EXCLUDED from scoring, never imputed
-(item 6); Component 3 alone covers 36/36, so no candidate is currently
-excluded.
+candidate_id. Component 1 runs are not used (amendment item 7): their
+protocol window (540 s, fault 22% of it) differs from Component 3's (300 s,
+fault 40%), and pooling let Component 1's larger n outweigh Component 3 on
+the candidates both cover. component1_runs_for() is kept for a possible
+robustness check but is not called. A candidate with no executions is
+excluded, never imputed (item 6). Component 3 covers all 36 candidates.
 
-Primary metric (PREREGISTRATION.md): balanced accuracy of throughput_direction
-(prediction i) per model, with 95% percentile bootstrap CIs (10,000
-resamples, fixed seed 42 -- item 7c; this is registered explicitly for
-Component 4 and is NOT the same method as Component 1's BCa CIs). Baselines:
-practitioner_heuristic (scripts/practitioner_heuristic.py, frozen rules),
-chance (0.5 by construction for balanced accuracy on a binary task), and a
-trivial always-predict-the-majority-ground-truth-class baseline (item 7e).
-Each arm's raw predicted-label distribution is also reported so a
-constant/degenerate predictor -- which mechanically produces exactly 0.5
-balanced accuracy with zero bootstrap CI width, indistinguishable from
-genuine chance performance in the summary numbers alone -- is visible
-without inspecting raw JSON.
+Primary metric: balanced accuracy of throughput_direction (prediction i)
+per model, with 95% percentile bootstrap CIs (10,000 resamples, seed 42,
+item 7c). Component 1 uses BCa CIs instead. Baselines: the practitioner
+heuristic (scripts/practitioner_heuristic.py), chance (0.5 for balanced
+accuracy on a binary task), and always predicting the majority ground-truth
+class (item 7e). Each arm's predicted-label counts are also reported,
+because a constant predictor scores exactly 0.5 with a zero-width CI and
+the summary numbers alone cannot tell it apart from chance.
 
-Secondary (exploratory, no CI/significance claims made): precision/recall of
-degraded_services (ii) against the ground-truth CPU-spike set, and
-calibration of weakness_signal_present (iii) against any_violation.
+Only prediction (i) is scored. The output records the ground truth for
+(iii), weakness_signal_present, but predictions (ii) and (iii) are not
+scored by this script.
 
 Ground-truth throughput_direction rule (item 6c): degrade if
 (119.7 - median_run_throughput_rps) / 119.7 > 0.10, else no_meaningful_change.
-119.7 rps is Component 2's real steady-state baseline
+119.7 rps is Component 2's steady-state baseline throughput
 (experiments/component4-baseline-summary.json).
 
 Usage:
@@ -50,7 +40,8 @@ Sensitivity analysis (optional, off by default): --min-support N restricts
 scoring to candidates whose ground truth rests on at least N Component 3
 injections. Every arm, the majority-class baseline and the bootstrap are
 recomputed on the restricted candidate set with the same metric, the same
-resampling unit and the same seed. Without the flag the output is unchanged.
+resampling unit and the same seed. Without the flag no candidate is dropped
+and the output has no sensitivity fields.
   python3 scripts/score-hypotheses.py --min-support 5 \\
       --out analysis/results/component4-scoring-min5.json
 """
@@ -80,9 +71,9 @@ BOOTSTRAP_RESAMPLES = 10_000
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import practitioner_heuristic  # noqa: E402
 
-# Component 1's 12 original (scenario_id -> scenario_template) mapping,
-# read directly off experiments/scenarios.yaml's own action/parameters
-# fields (not fault-space.yaml, which only lists the 36 campaign candidates).
+# Component 1's 12 scenarios (scenario_id -> scenario_template), taken from
+# the action/parameters fields in experiments/scenarios.yaml. fault-space.yaml
+# lists only the 36 campaign candidates.
 SCENARIO_TEMPLATE_MAP = {
     "p1": "pod-kill", "p2": "container-kill", "p3": "pod-failure",
     "n1": "latency-50ms", "n2": "latency-100ms", "n3": "latency-300ms",
@@ -99,9 +90,9 @@ def load_fault_space() -> list[dict]:
 
 
 def load_scenarios() -> dict[str, dict]:
-    """Keyed by lowercased id ("p1") to match both SCENARIO_TEMPLATE_MAP and
-    the data-v2/{cluster}/{tool}/{id}/ directory naming convention -- the
-    scenarios.yaml `id` field itself is uppercase ("P1")."""
+    """Scenarios keyed by lowercased id ("p1"), matching SCENARIO_TEMPLATE_MAP
+    and the data-v2/{cluster}/{tool}/{id}/ directory names. The `id` field in
+    scenarios.yaml is uppercase ("P1")."""
     with open(SCENARIOS_FILE) as f:
         doc = yaml.safe_load(f)
     return {s["id"].lower(): s for s in doc["scenarios"]}
@@ -109,7 +100,8 @@ def load_scenarios() -> dict[str, dict]:
 
 def component1_runs_for(scenario_template: str, target_service: str, scenarios: dict) -> list[Path]:
     """Every Component 1 run-N.json (either tool, either cluster) whose
-    scenario matches this exact (template, service) pair."""
+    scenario matches this (template, service) pair. Not used for the primary
+    ground truth."""
     matches = []
     for sid, template in SCENARIO_TEMPLATE_MAP.items():
         if template != scenario_template:
@@ -147,11 +139,12 @@ def _injection_candidate_id(path: Path) -> str | None:
 
 
 def real_throughput_and_violation(path: Path) -> tuple[float | None, bool | None]:
-    """Extract (throughput_rps, any_violation) from a real run/injection
-    file. Component 1 run files have no weakness_signals block (that's a
-    Component 3 concept); any_violation is None for those, and
-    weakness_signal_present ground truth is scored only from Component 3
-    data plus Component 1's own pod_restarts/error signal as a fallback."""
+    """Return (throughput_rps, any_violation) from a run or injection file,
+    or (None, None) if it cannot be read.
+
+    Component 3 injections carry weakness_signals.any_violation. Component 1
+    run files have no weakness_signals block, so for them any_violation is
+    approximated from the error-rate (> 5%) and pod-restart (> 0) legs only."""
     try:
         with open(path) as f:
             d = json.load(f)
@@ -163,10 +156,9 @@ def real_throughput_and_violation(path: Path) -> tuple[float | None, bool | None
     if weakness_signals:
         any_violation = weakness_signals.get("any_violation")
     else:
-        # Component 1 fallback: derive a same-spirit violation flag from
-        # what it does record (error rate + pod restarts), consistent with
-        # (not identical to -- no recovery/p99-vs-median signal available
-        # here) compute_weakness_signals's own error_rate/pod_restarts legs.
+        # Component 1 fallback: the error_rate and pod_restarts legs of
+        # compute_weakness_signals (run-campaign.py). The p99 and recovery
+        # legs have no equivalent in these files.
         errors = wrk2.get("errors", {})
         requests_total = wrk2.get("requests_total", 0) or 0
         error_count = sum(errors.get(k, 0) for k in
@@ -187,11 +179,9 @@ def median(values: list[float]) -> float | None:
 
 
 def ground_truth_for_candidate(candidate: dict, scenarios: dict) -> dict | None:
-    """Amendment item 7 (2026-08-18): Component 3 injections only. Component
-    1 pooling was dropped after it was found to drown out Component 3's real
-    signal for overlapping candidates (see module docstring / PREREGISTRATION.md
-    item 7b) -- `scenarios` is accepted for signature stability / a future
-    robustness-check appendix but is not used in the primary ground truth."""
+    """Ground truth for one candidate from its Component 3 injections only
+    (amendment item 7), or None if it has none. `scenarios` is accepted but
+    unused (see the module docstring)."""
     del scenarios
     injection_files = component3_injections_for(candidate["id"])
     if not injection_files:

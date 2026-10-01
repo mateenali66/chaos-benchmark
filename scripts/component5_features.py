@@ -2,40 +2,23 @@
 """
 Component 5 feature extraction (analysis/PREREGISTRATION.md, Component 5).
 
-Loads a Component 1 run's raw Prometheus timeseries sidecar
+Loads a Component 1 run's Prometheus timeseries sidecar
 (data-v2/{cluster}/{tool}/{scenario}/run-N.timeseries.json.gz) and its
-companion run-N.json, and builds an aligned (T x F) feature matrix plus a
-per-timestep fault label, ready for per-run anomaly-detector training.
+run-N.json, and builds an aligned (T x F) feature matrix on a 5 s grid plus
+a per-timestep fault label for per-run detector training.
 
-Two disclosed adaptations from a literal reading of PREREGISTRATION.md,
-both because the real data doesn't have what a naive implementation would
-assume:
+Features are infrastructure series only: container CPU, container memory,
+container network rx and tx, pod restarts, node CPU and node memory. The
+sidecars also hold Envoy-based HTTP queries (http_request_rate,
+http_error_rate, http_latency_bucket), but these return no series in any
+run, so they are not used. Most runs have all 7 features. 25 early runs have
+5, because their network series are empty (collected before the
+network-query fix). A feature with no data on a run is dropped for that run.
 
-1. HTTP-level metrics are unusable. The sidecar's own recorded metadata
-   defines queries for http_request_rate / http_error_rate /
-   http_latency_bucket (Envoy-based), but every one of these returns ZERO
-   Prometheus result series in every Component 1 run sampled (verified
-   across 15 runs spanning both tools and multiple scenarios) -- Envoy
-   sidecars were evidently never deployed/scraped in this cluster, despite
-   the query being defined. Component 5's features are therefore built from
-   infrastructure-level telemetry only: container CPU, container memory,
-   container network rx/tx, pod restarts, node CPU, node memory (7 series).
-   This also means the "static SLO threshold rules from Component 3's
-   weakness signals" baseline (error_rate>5%, p99>3x, recovery>60s,
-   pod_restarts>0) cannot be reproduced as originally specified for
-   per-timestep scoring -- see component5_detectors.py's
-   static_threshold_baseline() docstring for the adapted, disclosed rule.
-
-2. Training window excludes the sidecar's own pre-baseline buffer.
-   PREREGISTRATION.md's Component 1 amendment item 5 already discloses that
-   the sidecar's nominal 60s pre-baseline buffer (window_start) structurally
-   overlaps the excluded warmup job's traffic for roughly the first 40 of
-   those 60 seconds, and that Component 1's 720 already-collected sidecars
-   retain this disclosed overlap uncorrected. Component 5 trains each
-   detector on that run's OWN [phases.baseline.start, phases.fault.start)
-   window (from the companion run-N.json, not the sidecar's window_start),
-   i.e. the authoritative 300s baseline phase only, never the contaminated
-   pre-buffer.
+Detectors train on the run's own baseline phase only, taken from
+run-N.json. The sidecar's wider pre-baseline buffer (window_start) is not
+used, because its first ~40 s overlap the excluded warm-up traffic
+(PREREGISTRATION.md, Component 1 amendment item 5).
 """
 from __future__ import annotations
 
@@ -48,8 +31,7 @@ import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data-v2"
 
-# Infrastructure-level metric families actually populated in every run
-# (http_* queries are defined but always empty -- see module docstring).
+# Infrastructure metric families used as features (see module docstring).
 FEATURE_METRICS = [
     "container_cpu_usage",
     "container_memory_working_set",
@@ -105,13 +87,17 @@ def _series_to_df(result: list[dict], agg: str) -> pd.Series | None:
 
 
 def load_run_features(run_json_path: Path, ts_path: Path) -> dict | None:
-    """Returns None if the run is unusable (missing phases or no timeseries
-    data at all). Otherwise returns:
+    """Build the feature matrix and labels for one run.
+
+    Returns None if the run is unusable: missing phases, fewer than 4
+    populated features, or too few fault, non-fault or baseline timesteps.
+    Otherwise returns:
       {
-        "grid": DatetimeIndex,           # common 5s timestamps
-        "X": np.ndarray (T, F),          # feature matrix, FEATURE_METRICS order
-        "label": np.ndarray (T,) bool,   # True during [fault.start, fault.end)
-        "baseline_mask": np.ndarray (T,) bool,  # True during the true baseline phase
+        "grid": DatetimeIndex,                  # common 5 s timestamps
+        "X": np.ndarray (T, F),                 # features in FEATURE_METRICS order, empty ones dropped
+        "feature_names": list[str],             # column names of X
+        "label": np.ndarray (T,) bool,          # True during [fault.start, fault.end)
+        "baseline_mask": np.ndarray (T,) bool,  # True during [baseline.start, baseline.end)
         "metadata": {...},
       }
     """

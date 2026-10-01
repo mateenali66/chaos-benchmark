@@ -4,33 +4,29 @@ Component 3: fault-selection strategy study (analysis/PREREGISTRATION.md,
 "Metrics" and "Confirmatory analyses" #5).
 
 For each of the 50 campaigns (5 arms x 10 campaigns, K=10 injections each),
-builds the discovery curve: the cumulative count of unique weakness
-classes -- a weakness class instance is the (signal, target_service) pair,
-signals defined mechanically as error_rate_violation, p99_over_3x_baseline,
-recovery_over_60s, pod_restarts_violation (chaoslib.compute_weakness_signals,
-frozen before any campaign ran) -- found after each successive injection,
-in the injection order actually run (1..10). A weakness class counts once
-per campaign, at the injection where it was FIRST seen.
+builds the discovery curve: the cumulative count of unique weakness classes
+after each injection, in the order the injections ran. A weakness class is
+a (signal, target_service) pair. The signals are error_rate_violation,
+p99_over_3x_baseline, recovery_over_60s and pod_restarts_violation
+(compute_weakness_signals in scripts/run-campaign.py). A class counts once
+per campaign, at the injection where it first appears. Errored injections
+add nothing.
 
-Primary metric: discovery-curve AUC (trapezoidal area under
-cumulative-count-vs-injection-index, index 1..10 -- registered here since
-PREREGISTRATION.md names the metric but not the exact AUC integration rule).
-Secondary: total unique weaknesses at K=10 (the curve's final value),
-injections to first weakness (first index with cumulative count > 0, or
-None if never).
+Primary metric: discovery-curve AUC, the trapezoidal area under the
+cumulative count against injection index 1..10. Secondary: total unique
+classes at K=10 (the curve's final value) and injections to the first
+weakness (None if there is none).
 
 Confirmatory analysis #5: Kruskal-Wallis across the five arms on
-discovery-curve AUC (10 campaigns per arm, so 10 independent AUC values per
-arm -- independent because each campaign runs on a disjoint slice of the
-36-candidate fault space history, per run-campaign.py's per-campaign
-strategy state); if p < 0.05, pairwise two-sided Mann-Whitney U with Holm
-correction, Cliff's delta with BCa (falling back to percentile where
-degenerate, same as Component 1's analyze.py) 95% bootstrap CI.
+discovery-curve AUC (10 campaigns per arm). Campaigns are independent
+because each starts with an empty history. If p < 0.05, pairwise two-sided
+Mann-Whitney U with Holm correction, and Cliff's delta with a 95% BCa
+bootstrap CI (percentile fallback where BCa is undefined, as in
+analyze.py).
 
-A p99_over_3x_baseline reading of None (running_p99_median not yet
-available -- true for every campaign's first injection or two, before
-enough history exists) is treated as "not violated" for discovery-curve
-purposes: an unmeasurable signal cannot be counted as newly discovered.
+p99_over_3x_baseline is None until the campaign has an earlier p99 value to
+form a running median, so always on its first injection. None counts as not
+violated: an unmeasurable signal cannot be discovered.
 
 Usage:
     python3 analysis/component3_analyze.py

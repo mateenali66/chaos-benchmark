@@ -1,59 +1,45 @@
 #!/usr/bin/env bash
 ################################################################################
-# Batch Experiment Runner (--mode benchmark, i.e. the original 4-phase
-# protocol; overhead-isolation runs are driven by run-overhead.sh instead)
+# Component 1 batch runner (run-experiment.py --mode benchmark). Overhead runs
+# use run-overhead.sh instead.
 #
-# Full design: up to 2 tools x 12 scenarios x REPS runs (REPS default 30 ->
-# 720 total across both tools). This is split across two identical clusters
-# for the re-run at scale: bench-a runs --tool chaos-mesh, bench-b runs
-# --tool litmus, each producing 360 of the 720 runs.
+# Full design: 2 tools x 12 scenarios x 30 reps = 720 runs. The study split it
+# across two identical clusters: bench-a ran --tool chaos-mesh and bench-b ran
+# --tool litmus, 360 runs each.
 #
-# Resume support: skips (tool, scenario, rep) triples whose output JSON
-# already exists at data/{tool}/{scenario}/run-{rep}.json. This is safe to
-# run on a cluster that only has one tool's data -- e.g. re-running this on
-# bench-a with --tool chaos-mesh only ever looks at chaos-mesh output files,
-# so it never notices (and never needs) litmus's files from bench-b.
+# Each rep is preceded by reset-app-state.sh unless CHAOS_RESET_STATE=0.
+# Resume: a (tool, scenario, rep) is skipped when
+# $CHAOS_DATA_DIR/{tool}/{scenario}/run-{rep}.json already exists.
+#
+# Env: CHAOS_DATA_DIR (required), CHAOS_SLOT (default 0, overridden by
+# --slot), CHAOS_RESET_STATE (default 1).
 #
 # Usage:
 #   ./scripts/run-all-experiments.sh [--tool chaos-mesh|litmus|all] [--reps N] [--start-rep N] [--scenarios p1,p2,...] [--slot N]
 #
-# Examples (two-cluster layout):
+# Examples:
 #   bench-a$ ./scripts/run-all-experiments.sh --tool chaos-mesh --reps 30
 #   bench-b$ ./scripts/run-all-experiments.sh --tool litmus --reps 30
 #
-#   Resume bench-a after a crash partway through rep 14 of 30 (skips nothing
-#   extra beyond what --start-rep says to skip; existing-file resume still
-#   applies within the range too, so this is just an optimization to avoid
-#   re-checking 13 x 12 = 156 files you already know are done):
+#   Resume from rep 14. Existing outputs inside the range are still skipped,
+#   --start-rep only avoids checking the earlier reps:
 #   bench-a$ ./scripts/run-all-experiments.sh --tool chaos-mesh --reps 30 --start-rep 14
 #
-#   Single-cluster/local run of everything (original layout, both tools):
+#   Both tools on one cluster:
 #   $ ./scripts/run-all-experiments.sh --tool all --reps 30
 #
-# Slot parallelism (3 concurrent invocations on ONE cluster, one per slot):
-#   --scenarios p1,p2,p3,n1  restricts this invocation to an explicit,
-#       comma-separated scenario ID allowlist. Omitted (default) = all 12
-#       scenarios, unchanged from before slot support existed.
-#   --slot N  sets/exports CHAOS_SLOT=N for run-experiment.py and
-#       reset-app-state.sh, and prefixes every progress-log line with
-#       "[slot N]" so a shared progress.log from concurrent slot invocations
-#       stays distinguishable. Slot 0 (or --slot omitted) adds no prefix --
-#       byte-for-byte the original log format, so experiment-watchdog.py's
-#       parsing of an unset-CHAOS_SLOT campaign's log is unaffected.
+# Slot parallelism (see scripts/SLOT_PARALLELISM.md): up to 3 invocations can
+# run on one cluster, one per slot.
+#   --scenarios  restricts the invocation to a comma-separated list of scenario
+#       IDs. The default is all 12 scenarios.
+#   --slot N  exports CHAOS_SLOT=N for run-experiment.py and
+#       reset-app-state.sh. Slots other than 0 prefix every progress.log line
+#       with "[slot N]" so concurrent invocations sharing one log stay
+#       distinguishable.
 #
-#   IMPORTANT / caller responsibility: CHAOS_DATA_DIR should normally be the
-#   SAME shared directory across a cluster's concurrent slot invocations.
-#   Output paths are data/{tool}/{scenario}/run-{rep}.json -- scenario+run+
-#   tool alone identifies a file, with no slot component, because a run's
-#   scenario+tool+rep triple is assumed unique per invocation. This only
-#   holds if the --scenarios sets passed to concurrent slots on one cluster
-#   are DISJOINT (e.g. slot 0 = p1,p2,p3,n1 / slot 1 = n2,n3,n4,n5 / slot 2 =
-#   r1,r2,a1,a2). Two slots racing on the SAME scenario+tool+rep would race
-#   on the same output file. Enforcing disjoint scenario sets across
-#   concurrent slots is the caller's responsibility, not this script's --
-#   see scripts/SLOT_PARALLELISM.md for a worked 3-way split example.
-#   Concurrent appends to the same progress.log are fine (each `tee -a` line
-#   write is small enough to not interleave mid-line in practice).
+#   Output paths have no slot component, so concurrent slots sharing one
+#   CHAOS_DATA_DIR must use disjoint --scenarios sets. The script does not
+#   check this.
 #
 #   Example (3 concurrent slots on one cluster, disjoint scenario sets):
 #   slot0$ CHAOS_SLOT=0 ./scripts/run-all-experiments.sh --tool chaos-mesh --scenarios p1,p2,p3,n1 --reps 30
@@ -118,8 +104,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --scenarios overrides the default full 12-scenario list. Omitted =
-# unchanged behavior (all 12, in the original order).
+# --scenarios replaces the default list of all 12 scenarios.
 if [[ -n "${SCENARIOS_ARG}" ]]; then
     IFS=',' read -ra SCENARIOS <<< "${SCENARIOS_ARG}"
     for s in "${SCENARIOS[@]}"; do
@@ -134,16 +119,12 @@ if [[ -n "${SCENARIOS_ARG}" ]]; then
     done
 fi
 
-# --slot sets/exports CHAOS_SLOT for run-experiment.py (chaoslib picks it up
-# via os.environ) and reset-app-state.sh. Slot 0/unset -> exported as "0",
-# which chaoslib.namespace_for_slot() maps back to the original default
-# namespace, so this is a no-op for the currently-running default campaign.
+# Exported for run-experiment.py (read by chaoslib) and reset-app-state.sh.
+# Slot 0 maps to the default namespace social-network.
 export CHAOS_SLOT="${SLOT}"
 
-# Log-line prefix for concurrent slot invocations sharing one progress.log.
-# Slot 0/unset -> empty prefix, i.e. byte-for-byte the original log format
-# (experiment-watchdog.py parses this log and must not see a format change
-# on the unset-CHAOS_SLOT path).
+# Progress-log prefix for slots other than 0. experiment-watchdog.py parses
+# lines with and without it.
 LOG_PREFIX=""
 if [[ -n "${SLOT}" && "${SLOT}" != "0" ]]; then
     LOG_PREFIX="[slot ${SLOT}] "
@@ -177,22 +158,14 @@ CURRENT=0
 SKIPPED=0
 FAILED=0
 
-# CHAOS_DATA_DIR assumption: this should normally be the SAME shared
-# directory across a cluster's concurrent slot invocations (see the header
-# comment above). Output paths never include slot, only tool/scenario/run,
-# so disjoint --scenarios sets across concurrent slots is what keeps this
-# safe -- that invariant is the caller's responsibility, not enforced here.
 mkdir -p "${DATA_DIR}"
 
 echo "${LOG_PREFIX}================================================================================" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}  Chaos Benchmark - Batch Experiment Runner" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}  Tools: ${TOOLS[*]} | Scenarios: ${#SCENARIOS[@]} | Reps: ${START_REP}-${REPS}" | tee -a "${PROGRESS_LOG}"
 echo "${LOG_PREFIX}  Total experiments this invocation: ${TOTAL}" | tee -a "${PROGRESS_LOG}"
-# Explicit, logged acknowledgment of the resolved value: an accidentally
-# leaked/copy-pasted CHAOS_RESET_STATE=0 must be visible in progress.log,
-# not just inferable from the absence of "[reset]" lines (see
-# analysis/PREREGISTRATION.md amendment 3 for why silent no-reset is a
-# validity-breaking failure mode, not a minor one).
+# Log the reset setting, so a run with resets disabled is visible in
+# progress.log (see analysis/PREREGISTRATION.md, Component 1 amendment item 3).
 if [[ "${CHAOS_RESET_STATE:-1}" != "1" ]]; then
     echo "${LOG_PREFIX}  WARNING: CHAOS_RESET_STATE=${CHAOS_RESET_STATE} -- per-rep state reset is DISABLED for this invocation" | tee -a "${PROGRESS_LOG}"
 else
@@ -218,11 +191,9 @@ for tool in "${TOOLS[@]}"; do
             echo "${LOG_PREFIX}[${CURRENT}/${TOTAL}] RUN  ${tool} / ${scenario} / run ${run}" | tee -a "${PROGRESS_LOG}"
             echo "${LOG_PREFIX}  Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a "${PROGRESS_LOG}"
 
-            # State reset before every rep: repetitions are only i.i.d. from
-            # identical app state (pilot: rep 10 ran at 11 rps / 74% errors
-            # without this). CHAOS_RESET_STATE=0 to disable. CHAOS_SLOT is
-            # already exported above, so reset-app-state.sh resets the
-            # correct slot's namespace.
+            # Reset app state before every rep (CHAOS_RESET_STATE=0 disables
+            # it). CHAOS_SLOT is exported above, so the reset targets this
+            # slot's namespace.
             if [[ "${CHAOS_RESET_STATE:-1}" == "1" ]]; then
                 echo "${LOG_PREFIX}  [reset] resetting app state..." | tee -a "${PROGRESS_LOG}"
                 if ! "${SCRIPT_DIR}/reset-app-state.sh" >> "${PROGRESS_LOG}" 2>&1; then

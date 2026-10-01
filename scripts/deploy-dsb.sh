@@ -2,16 +2,14 @@
 set -euo pipefail
 
 ################################################################################
-# Deploy DeathStarBench Social Network
-# Uses the Helm chart from the DeathStarBench submodule
+# Deploy the DeathStarBench Social Network with the Helm chart from the
+# DeathStarBench submodule and the values in helm/dsb-values.yaml.
 #
-# Slot parallelism: pass a slot ("1" or "2") as the first positional arg, or
-# set CHAOS_SLOT in the environment, to deploy into an isolated namespace
-# (social-network-<slot>) with a nodeSelector overlay pinning it to that
-# slot's dedicated nodes (node label chaos-slot=<slot>, provisioned
-# separately -- see scripts/SLOT_PARALLELISM.md). Slot 0/unset (the default)
-# deploys exactly as before: namespace social-network, no nodeSelector, no
-# overlay file -- byte-for-byte the original behavior.
+# Slot parallelism (see scripts/SLOT_PARALLELISM.md): pass a slot number as the
+# first argument, or set CHAOS_SLOT, to deploy into namespace
+# social-network-<slot> and pin its pods to nodes labelled chaos-slot=<slot>.
+# The node labels must already exist. Slot 0 or unset deploys into namespace
+# social-network with no node pinning.
 #
 # Usage:
 #   ./scripts/deploy-dsb.sh          # default: namespace social-network
@@ -26,10 +24,7 @@ DSB_CHART="$PROJECT_DIR/DeathStarBench/socialNetwork/helm-chart/socialnetwork"
 # Positional arg (if given) wins over the CHAOS_SLOT env var.
 CHAOS_SLOT="${1:-${CHAOS_SLOT:-0}}"
 
-# Namespace convention for slot parallelism (slot 0/unset = default
-# namespace; slot N = "social-network-N"). Kept in sync with
-# chaoslib.namespace_for_slot() -- if you change this logic, change it
-# there too.
+# Namespace for this slot. Keep in sync with chaoslib.namespace_for_slot().
 if [[ -z "${CHAOS_SLOT}" || "${CHAOS_SLOT}" == "0" ]]; then
     NAMESPACE="social-network"
 else
@@ -54,10 +49,9 @@ if [[ -n "${CHAOS_SLOT}" && "${CHAOS_SLOT}" != "0" ]]; then
 
     kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
 
-    # mktemp's "template-XXXXXX.suffix" form does not reliably substitute in
-    # this environment (reproducible collision across concurrent invocations);
-    # mktemp -d randomizes correctly, so use a fixed filename inside a
-    # randomized directory instead.
+    # Use a fixed filename inside a mktemp -d directory. Some mktemp
+    # implementations only randomize trailing Xs, so a name-XXXXXX.yaml
+    # template can collide between concurrent runs.
     SLOT_TMPDIR="$(mktemp -d)"
     SLOT_VALUES_FILE="${SLOT_TMPDIR}/dsb-values-slot.yaml"
     trap 'rm -rf "${SLOT_TMPDIR}"' EXIT
@@ -73,12 +67,11 @@ helm upgrade --install social-network "$DSB_CHART" \
   "${HELM_VALUES_ARGS[@]}" \
   --wait --timeout 10m
 
-# The vendored chart templates do not read any nodeSelector key (verified:
-# zero hits for nodeSelector in templates/), so dsb-values-slot.yaml.tpl's
-# overlay above is otherwise a no-op. Node pinning for slot!=0 is instead
-# applied here via a post-install patch of every Deployment in the slot's
-# namespace -- this avoids modifying the vendored third-party chart. The
-# patch triggers a rolling update, so pods are re-waited afterward.
+# The vendored chart templates do not read nodeSelector, so the
+# dsb-values-slot.yaml.tpl overlay above has no effect. For slots other than 0,
+# pin the pods by patching a nodeSelector into every Deployment in the
+# namespace, which leaves the third-party chart unmodified. The patch triggers
+# a rolling update, so wait for it to finish.
 if [[ -n "${CHAOS_SLOT}" && "${CHAOS_SLOT}" != "0" ]]; then
     echo ""
     echo "=== Pinning slot ${CHAOS_SLOT} workloads to chaos-slot=${CHAOS_SLOT} nodes ==="

@@ -2,30 +2,27 @@
 """
 Component 2: overhead decomposition (analysis/PREREGISTRATION.md).
 
-Three configurations x 10 repetitions per tool per cluster:
-  (a) baseline  -- no chaos tool installed, load only.
-  (b) idle      -- tool installed and idle, load only.
-  (c) fault     -- tool + fault (a single representative scenario, p1/pod-kill,
-                    as actually collected -- data-v2/{cluster}/overhead/{tool}-fault/).
-Purpose: separate standing agent overhead (b minus a) from fault side effects
-(c minus b). Descriptive analysis with bootstrap CIs; no hypothesis test is
-registered for this component (PREREGISTRATION.md).
+Three configurations x 10 repetitions per tool, each tool on its own cluster
+(Chaos Mesh on bench-a, LitmusChaos on bench-b):
+  (a) baseline: no chaos tool installed, load only.
+  (b) idle: tool installed and idle, load only.
+  (c) fault: tool plus one representative fault, p1 (pod kill)
+      (data-v2/{cluster}/overhead/{tool}-fault/).
+Standing overhead is (b) minus (a): idle's `load` phase against baseline's
+`load` phase. Fault side effects are (c) minus (b): the fault run's `fault`
+phase against idle's `load` phase. Descriptive only, with bootstrap CIs. No
+hypothesis test is registered for this component.
 
-NOTE: this script was needed because the prior analyze.py (before this
-paper's rework) never actually used this dataset -- it computed a
-same-named but methodologically different "overhead_comparison.csv" as
-fault_cpu - baseline_cpu directly from Component 1 records, which conflates
-tool overhead with fault side effects, exactly the confound Component 2's
-three-configuration design exists to separate. This is a from-scratch build
-against the real (a)/(b)/(c) dataset, not a fix to prior logic.
+CPU and memory are the mean per pod across the social-network namespace
+(application pods and the wrk2 load generator), taken over all pods and
+timepoints in the phase. The chaos tools' own pods run in other namespaces
+and are not included. Values are bootstrap medians with 95% percentile CIs
+(10,000 resamples, seed 42).
 
-Standing overhead (b - a) compares idle's `load` phase against baseline's
-own `load` phase (both steady-state, tool difference isolated). Fault side
-effects (c - b) compare fault's `fault` phase against idle's `load` phase
-(both "tool present" states, fault isolated). All CPU/memory values are the
-mean across all pods and timepoints within the relevant phase (same
-aggregation analyze.py uses for Component 1), reported as bootstrap medians
-with 95% percentile CIs (10,000 resamples, seed 42).
+LitmusChaos is not reported. Its bench-b runs have empty per-run
+infrastructure metrics. Its raw sidecars exist, but LitmusChaos runs its
+runner and fault pods inside social-network, so a per-pod average from them
+would not be comparable with Chaos Mesh's.
 
 Usage:
     python3 analysis/component2_analyze.py
@@ -115,21 +112,12 @@ def main():
             idle = load_config(cluster, f"{tool}-idle", "load")
             fault = load_config(cluster, f"{tool}-fault", "fault")
             if not idle or not fault:
-                continue  # this tool wasn't run on this cluster (non-crossover overhead design)
+                continue  # each tool's overhead runs are on one cluster only
 
-            # Amendment 2026-08-18: bench-b's entire overhead campaign
-            # (baseline + litmus-idle + litmus-fault, 30 runs) has
-            # completely empty Prometheus infra_metrics on every run -- a
-            # collection failure during the original 2026-08-15 run, not
-            # something introduced here. Both EKS clusters used for this
-            # study are already torn down, so re-collection would require
-            # re-provisioning infrastructure for a purely descriptive
-            # component (no significance test is registered for Component
-            # 2). User decision 2026-08-18: accept and disclose rather than
-            # re-provision. wrk2 client-side throughput/latency IS intact
-            # for these runs (not Prometheus-dependent) but is not reported
-            # here since Component 2's decomposition is a CPU/memory
-            # overhead question, not a throughput one.
+            # bench-b's overhead runs (baseline, litmus-idle, litmus-fault)
+            # have empty infra_metrics, so LitmusChaos is skipped here (see
+            # the module docstring). Their wrk2 throughput and latency are
+            # intact but do not answer the CPU/memory question.
             if all(r["cpu"] is None for r in baseline + idle + fault):
                 skipped_empty.append((cluster, tool))
                 continue

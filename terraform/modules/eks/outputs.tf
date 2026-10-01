@@ -72,7 +72,7 @@ output "node_iam_role_name" {
 }
 
 output "node_group_id" {
-  description = "ID of the SPOT node group"
+  description = "ID of the managed node group"
   value       = aws_eks_node_group.default.id
 }
 

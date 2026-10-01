@@ -1,10 +1,10 @@
 ################################################################################
 # Cluster: is-chaos-bench-a
 # Terraform workspace: bench-a
-# One of two identical benchmark clusters running the Chaos Mesh / LitmusChaos
-# comparison concurrently (paired with is-chaos-bench-b). Owns the shared
-# S3 artifacts bucket (create_s3_bucket = true) -- see terraform/main.tf and
-# scripts/export-to-s3.sh.
+# One of two identical clusters for Components 1 and 2 (paired with
+# is-chaos-bench-b). Runs Chaos Mesh reps 1-15, then LitmusChaos reps 16-30.
+# Owns the shared S3 artifacts bucket (create_s3_bucket = true), see
+# terraform/main.tf and scripts/export-to-s3.sh.
 #
 # Usage:
 #   terraform -chdir=terraform workspace select bench-a || terraform -chdir=terraform workspace new bench-a
@@ -25,9 +25,8 @@ az_count = 3
 
 node_instance_types = ["m5.xlarge"]
 capacity_type       = "ON_DEMAND"
-# Corrected 2026-08-18: was 9, inconsistent with max_size below (AWS caps desired
-# at max on apply); the actually-provisioned/applied cluster ran 3 nodes, matching
-# analysis/PREREGISTRATION.md and terraform.tfstate.d/bench-a's applied state.
+# 3 nodes as last applied. For Component 1 the node group was scaled to 9
+# nodes to host three slots (scripts/SLOT_PARALLELISM.md).
 node_desired_size = 3
 node_min_size       = 3
 node_max_size       = 3
@@ -40,7 +39,7 @@ tags = {
   Environment = "bench-a"
 }
 
-# REQUIRED before `terraform plan`: fill in with the IAM ARN(s) that should
-# get EKS cluster-admin access (e.g. your IAM role or user ARN).
-cluster_admin_arns = []  # creator user/mateen gets AmazonEKSClusterAdminPolicy automatically via the bootstrap access entry; list ADDITIONAL admins only
+# Extra IAM ARNs to get EKS cluster-admin access. The identity that creates
+# the cluster gets it through the bootstrap access entry.
+cluster_admin_arns = []
 

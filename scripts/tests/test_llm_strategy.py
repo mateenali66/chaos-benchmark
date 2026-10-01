@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Offline tests for run-campaign.py's LLMStrategy (Component 3, ML
-fault-selection study). Zero network, zero cluster, zero AWS: every test
-drives LLMStrategy through a MockLLMClient implementing the same
-`.invoke(prompt, temperature, max_tokens) -> response` shape as
-llmclient.BedrockClient, so nothing here ever imports boto3 or touches
-Bedrock.
+Offline tests for run-campaign.py's LLMStrategy (Component 3).
 
-Runnable directly (no pytest dependency assumed):
-  python3 scripts/tests/test_llm_strategy.py
-or via pytest if it happens to be installed:
-  pytest scripts/tests/test_llm_strategy.py
+No network, cluster or AWS access. Every test drives LLMStrategy through
+MockLLMClient, which has the same invoke(prompt, temperature, max_tokens)
+signature as llmclient.BedrockClient, so boto3 is never imported.
+
+chaoslib requires CHAOS_DATA_DIR at import time. The tests write nothing
+there, so any path works. Run from the repo root:
+  CHAOS_DATA_DIR=/tmp/unused python3 scripts/tests/test_llm_strategy.py
+or with pytest:
+  CHAOS_DATA_DIR=/tmp/unused pytest scripts/tests/test_llm_strategy.py
 """
 
 import importlib.util
@@ -23,15 +23,12 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(SCRIPTS_DIR) not in sys.path:
-    # run-campaign.py does bare `import chaoslib` / `import llmclient`,
-    # so scripts/ must be on sys.path before it's loaded below.
+    # run-campaign.py imports chaoslib and llmclient by bare name.
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 def _load_run_campaign():
-    """run-campaign.py's filename has a hyphen and cannot be `import`-ed
-    directly (same reason chaoslib.py's module docstring gives for why it
-    exists), so load it by file path instead."""
+    """Load run-campaign.py by path, since its hyphenated name cannot be imported."""
     spec = importlib.util.spec_from_file_location("run_campaign", SCRIPTS_DIR / "run-campaign.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -43,22 +40,19 @@ run_campaign = _load_run_campaign()
 
 @dataclass
 class FakeLLMResponse:
-    """Mirrors llmclient.LLMResponse's shape (text/model_id/raw) without
-    importing llmclient (which lazily needs boto3 only inside
-    BedrockClient, so importing llmclient itself is fine too -- this class
-    just avoids the dependency entirely for clarity)."""
+    """Same fields as llmclient.LLMResponse (text, model_id, raw)."""
     text: str
     model_id: str
     raw: dict
 
 
 class MockLLMClient:
-    """Zero-network stand-in for llmclient.BedrockClient. `responses` is a
-    list where each entry is either a string (becomes the completion text)
-    or an Exception instance (raised instead of returning, simulating a
-    request/API failure). Each call to invoke() consumes the next entry; if
-    invoke() is called more times than len(responses), the last entry
-    repeats."""
+    """Offline stand-in for llmclient.BedrockClient.
+
+    Each entry in responses is a string, returned as the completion text, or
+    an Exception, raised to simulate an API failure. Each invoke() call takes
+    the next entry, and the last entry repeats once the list runs out.
+    """
 
     def __init__(self, responses, model_id="mock-model-id"):
         self.responses = list(responses)
@@ -123,8 +117,7 @@ class TestValidSelection(LLMStrategyTestBase):
         self.assertEqual(transcript[0]["validation_outcome"], "valid")
         self.assertEqual(transcript[0]["selected_candidate_id"], target_id)
         self.assertFalse(transcript[0]["fallback"])
-        # model_id in the transcript comes from the response object (what
-        # the API actually reported), not assumed from the strategy config.
+        # The transcript's model_id comes from the response, not the strategy config.
         self.assertEqual(transcript[0]["model_id"], client.model_id)
         self.assertIn("prompt", transcript[0])
         self.assertIn(target_id, transcript[0]["prompt"])
@@ -147,7 +140,7 @@ class TestValidSelection(LLMStrategyTestBase):
         self.assertEqual(len(transcript), 2)
         self.assertTrue(transcript[0]["validation_outcome"].startswith("invalid:"))
         self.assertEqual(transcript[1]["validation_outcome"], "valid")
-        # Re-prompt must restate the specific error so the model can correct itself.
+        # The re-prompt must restate the specific error.
         self.assertIn("NOT-A-REAL-ID", transcript[1]["prompt"])
 
 
@@ -176,9 +169,7 @@ class TestAlreadyTriedRejected(LLMStrategyTestBase):
     def test_already_tried_candidate_is_rejected_and_falls_back(self):
         tried_candidate = self.fault_space[0]
         history = [run_campaign.RunResult(candidate=tried_candidate, weakness_signals={"any_violation": False})]
-        # A valid, real candidate_id -- but one already in `history` -- must
-        # still be rejected (not-yet-tried is a hard constraint, not just
-        # fault-space membership).
+        # A real candidate_id that is already in history must be rejected.
         client = MockLLMClient([valid_json(tried_candidate.id)] * 5)
         strategy = self.make_strategy(client, fallback_seed=3)
 
@@ -263,7 +254,7 @@ class TestTranscriptWriting(LLMStrategyTestBase):
         self.assertEqual(record["arm"], "llm-claude")
 
     def test_transcript_accumulates_across_multiple_injections(self):
-        # Two injections in the same campaign_dir -> one shared transcript file.
+        # Two injections in the same campaign_dir share one transcript file.
         id1, id2 = self.fault_space[0].id, self.fault_space[1].id
         client1 = MockLLMClient([valid_json(id1)])
         strategy1 = self.make_strategy(client1)
@@ -297,10 +288,9 @@ class TestDeterministicFallback(LLMStrategyTestBase):
         self.assertEqual(selected_a.id, selected_b.id)
 
     def test_different_seed_can_give_different_fallback_choice(self):
-        # Not guaranteed to differ for any two seeds in general, but this
-        # pair is verified to diverge for the current fault-space.yaml
-        # ordering; if fault-space.yaml's candidate order ever changes this
-        # assertion may need a different seed pair, not a design change.
+        # Two seeds need not differ in general. This pair does for the
+        # current fault-space.yaml order; if that order changes, pick
+        # another pair.
         client_a = MockLLMClient([valid_json("bad-id")] * 5)
         client_b = MockLLMClient([valid_json("bad-id")] * 5)
         strategy_a = self.make_strategy(client_a, fallback_seed=1)
@@ -319,9 +309,8 @@ class TestDeterministicFallback(LLMStrategyTestBase):
         for _ in range(3):
             client = MockLLMClient([valid_json("bad-id")] * 5)
             strategy = self.make_strategy(client, fallback_seed=42)
-            # Fresh campaign_dir each time so transcripts don't pile up
-            # (the fallback RNG only depends on fallback_seed, not on any
-            # prior transcript state).
+            # Fresh campaign_dir each time. The fallback RNG depends only on
+            # fallback_seed.
             with tempfile.TemporaryDirectory() as d:
                 strategy.campaign_dir = Path(d)
                 strategy.transcript_path = Path(d) / "llm-transcript.jsonl"

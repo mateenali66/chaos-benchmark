@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
 """
-Tables and figures for Components 3, 4, 5 (the ML-arm results), reading
-ONLY from analysis/results/component{3,4,5}-scoring.json -- the outputs of
-component3_analyze.py / score-hypotheses.py / component5_evaluate.py -- so
-nothing here re-derives or can drift from what those scripts already
-computed and PREREGISTRATION.md already documents.
+Tables and figures for Components 2 to 5. Reads only the result files those
+components' scripts write, so nothing here recomputes a statistic:
+analysis/results/component2_overhead.csv (component2_analyze.py),
+component3-scoring.json (component3_analyze.py), component4-scoring.json
+(scripts/score-hypotheses.py) and component5-scoring.json
+(scripts/component5_evaluate.py).
 
 Tables:
     Table 6b: Component 2 overhead decomposition (standing overhead vs fault side effects)
-    Table 7: Component 3 discovery-curve results per arm + Kruskal-Wallis
-    Table 8: Component 4 hypothesis-generation balanced accuracy per arm/baseline
-    Table 9: Component 5 detector AUC-ROC vs static-threshold baseline
+    Table 7: Component 3 discovery-curve AUC per arm, with Kruskal-Wallis
+    Table 8: Component 4 balanced accuracy per arm and baseline
+    Table 9: Component 5 detector AUC-ROC vs the static-threshold baseline
 
 Figures:
-    Fig 10: Component 3 discovery curves (median + IQR band per arm)
-    Fig 11: Component 4 balanced accuracy with 95% CI, degenerate arms flagged
-    Fig 12: Component 5 AUC-ROC with 95% CI per detector/baseline
+    Fig 10: Component 3 discovery curves (median and IQR band per arm)
+    Fig 11: Component 4 balanced accuracy with 95% CI, constant predictors greyed
+    Fig 12: Component 5 median AUC-ROC with 95% CI per detector and baseline
 
-Table 6b exists because a 2026-08-18 numerical-consistency audit found
-Component 2's real result numbers (in analysis/results/component2_overhead.csv)
-had no LaTeX table at all: analysis/tables/table6_overhead.tex is Component
-1's recovery-time/pod-restart data (a name collision -- both are called
-"overhead" but measure different things), and component2_overhead.csv was
-never rendered anywhere. Numbered 6b, not 7, to sit next to Component 1's
-table 6 rather than renumber the ML tables already at 7/8/9.
+Table 6b is the Component 2 result. Table 6 (tables.py, table6_overhead.tex)
+holds Component 1's recovery time and pod restarts, despite its file name.
 """
 from __future__ import annotations
 
@@ -282,7 +278,7 @@ def table9_component5(data: dict):
         ci = f"[{s['ci_95_lo']:.3f}, {s['ci_95_hi']:.3f}]" if s.get("ci_95_lo") is not None else "--"
         if name == "static_threshold":
             excl = s["n_degenerate_excluded"]
-            paired_med = med  # baseline's own full-sample median IS its paired-subset median (n=299 already)
+            paired_med = med  # the baseline's scored runs are the paired subset
             vs_base = rf"({excl} degenerate runs excluded)"
         else:
             c = confirmatory[name]
@@ -313,9 +309,9 @@ def fig12_component5_bars(data: dict):
     lo = [summary[n].get("ci_95_lo") for n in names]
     hi = [summary[n].get("ci_95_hi") for n in names]
 
-    # One cas-dc column (\columnwidth = 238.25pt = 3.31in): figsize is set so
-    # the tight-bbox PDF is ~3.3in wide and the point sizes here are the
-    # final printed sizes. rc_context keeps fig10/fig11's module-wide style.
+    # One cas-dc column (\columnwidth = 238.25pt = 3.31in): figsize makes the
+    # tight-bbox PDF ~3.3in wide, so these point sizes are the printed sizes.
+    # rc_context leaves the module-wide style of fig10 and fig11 unchanged.
     with plt.rc_context({"font.size": 7.5, "axes.labelsize": 8, "xtick.labelsize": 7.5,
                          "ytick.labelsize": 7.5, "axes.linewidth": 0.8}):
         fig, ax = plt.subplots(figsize=(3.25, 2.6))
@@ -325,10 +321,9 @@ def fig12_component5_bars(data: dict):
         colors = ["#FF9800" if n == "static_threshold" else "#2196F3" for n in names]
         ax.bar(x, medians, color=colors, yerr=yerr, capsize=4, error_kw={"linewidth": 0.9})
         ax.axhline(0.5, color="gray", linestyle="--", linewidth=1)
-        # Direct label just outside the right spine instead of a legend: every
-        # bar crosses 0.5, so there is no bar-free spot on the line inside the
-        # axes, and the old loc="lower right" legend covered the bottom of the
-        # orange static-threshold bar (found in a 2026-09-30 QA pass).
+        # Direct label just outside the right spine instead of a legend:
+        # every bar crosses 0.5, so the line has no bar-free spot inside the
+        # axes.
         ax.annotate("Chance\n(0.5)", xy=(1.0, 0.5), xycoords=("axes fraction", "data"),
                     xytext=(3, 0), textcoords="offset points", ha="left", va="center",
                     fontsize=7, color="dimgray", linespacing=1.0, annotation_clip=False)
@@ -336,8 +331,7 @@ def fig12_component5_bars(data: dict):
         ax.set_xticklabels([DETECTOR_LABELS[n].replace(" (baseline)", "\n(baseline)") for n in names],
                            rotation=30, ha="right", rotation_mode="anchor", linespacing=1.0)
         ax.set_ylabel("Median AUC-ROC (per-run)")
-        # No in-figure title: the LaTeX caption ("Detector AUC-ROC vs. the
-        # static-threshold baseline ...") already carries it.
+        # No in-figure title. The LaTeX caption carries it.
         ax.set_ylim(0, 1)
         ax.set_axisbelow(True)  # grid behind the bars, not drawn through them
         fig.tight_layout()

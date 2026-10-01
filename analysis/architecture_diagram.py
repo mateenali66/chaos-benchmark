@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate experimental architecture diagram using the Python diagrams library.
-https://diagrams.mingrammer.com
+Draw the experimental architecture diagram with the Python diagrams library
+(https://diagrams.mingrammer.com).
 
-Outputs: analysis/figures/fig1_architecture.png
+Output: analysis/figures/fig1_architecture.png
 """
 
 from diagrams import Diagram, Cluster, Edge

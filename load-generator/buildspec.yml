@@ -2,9 +2,9 @@ version: 0.2
 
 env:
   variables:
-    # ECR_REPO is normally injected by CodeBuild (see scripts/build-wrk2-image.sh,
-    # which resolves the account ID dynamically via aws sts get-caller-identity);
-    # this placeholder is intentionally non-functional if used as-is.
+    # AWS CodeBuild spec for the wrk2 image. scripts/build-wrk2-image.sh builds
+    # locally and does not use this file. Set ECR_REPO in the CodeBuild
+    # project; the placeholder below does not resolve.
     ECR_REPO: "<ACCOUNT_ID>.dkr.ecr.ca-central-1.amazonaws.com/chaos-benchmark/wrk2"
     AWS_REGION_NAME: "ca-central-1"
 

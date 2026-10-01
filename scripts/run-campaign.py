@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 """
-Chaos Benchmark Campaign Runner (ML fault-selection study scaffold)
+Chaos Benchmark campaign runner (Component 3, fault-selection study).
 
-A campaign = a sequence of K=10 fault injections, chosen one at a time by a
-pluggable strategy from the 36-candidate fault space in
-experiments/fault-space.yaml, run back-to-back on a single tool/cluster with
-a shortened protocol (BASELINE 120s / FAULT 120s / RECOVERY 60s, no
-cooldown) to keep a 10-injection campaign well under two hours.
+A campaign is a sequence of K=10 fault injections. A strategy picks each one
+from the 36-candidate fault space in experiments/fault-space.yaml, and the
+injections run back to back on one tool and cluster with a shortened protocol
+(baseline 120 s, fault 120 s, recovery 60 s, no cooldown).
 
-Reuses chaoslib.run_fault_protocol for the actual injection execution (the
-same function --mode benchmark and --mode overhead's "fault" config use),
-so campaign runs share every kubectl/wrk2/Prometheus code path with the
-main benchmark instead of re-implementing it.
+Each injection is rendered to a local Kubernetes manifest and run through
+chaoslib.run_fault_protocol, the same executor run-experiment.py uses, so
+campaigns share its kubectl, wrk2 and Prometheus handling.
 
-Strategies implemented now: random (seeded), coverage (deterministic
-round-robin over category x service), and one LLMStrategy instance per
-frozen Bedrock arm in experiments/llm-config.yaml (llm-claude, llm-llama,
-llm-mistral). See LLMStrategy's docstring for the selection prompt,
-validation, and fallback semantics.
+Strategies: random (seeded), coverage (deterministic round-robin over
+category x service), and one LLMStrategy per Amazon Bedrock arm in
+experiments/llm-config.yaml (llm-claude, llm-llama, llm-mistral).
 
 Usage:
   python3 run-campaign.py --tool chaos-mesh --strategy random --seed 42 --campaign 1
@@ -30,13 +26,11 @@ Output:
   data/campaigns/{strategy}/campaign-{N}/injection-{1..10}.timeseries.json.gz
   data/campaigns/{strategy}/campaign-{N}/campaign-summary.json
 
-Resume: if injection-K.json already exists, it is not re-run; its recorded
-candidate is folded into `history` before selecting injection K+1 onward, so
-`random` (whose ordering depends only on the seed, not on outcomes) and
-`coverage` (whose ordering depends only on which (category, service) pairs
-have been tried, not on their results) both resume deterministically. The
-`campaign-summary.json` is always regenerated from whatever injection files
-exist, so it's safe to inspect after a partial/interrupted campaign too.
+Resume: an injection whose injection-K.json already exists is not re-run. Its
+candidate is added to the history before the next selection. The random and
+coverage strategies do not depend on outcomes, so they resume deterministically.
+campaign-summary.json is rebuilt from the injection files that exist, so it is
+valid after a partial campaign too.
 """
 
 import argparse
@@ -68,20 +62,16 @@ CAMPAIGN_K = 10
 
 
 def verify_chaoscenter_catalog(fault_space: list) -> None:
-    """Path (c), jss/ML_ARM_DESIGN.md Component 3 wiring status: fault
-    EXECUTION runs entirely on the local-manifest path below (render_manifest
-    -> chaoslib.run_fault_protocol) regardless of this check -- ChaosCenter's
-    own runChaosExperiment/Argo Workflow trigger is broken (chaos-runner
-    binary absent, see litmus_chaoscenter_client.py's module docstring) and
-    is never called here. What this DOES verify, once per campaign start
-    (not per injection, to keep API load flat), is the narrower true claim:
-    that the llm strategy's candidate menu corresponds 1:1 to experiments
-    genuinely registered and independently listable in ChaosCenter, via a
-    live listExperiment call cross-referenced against
-    experiments/chaoscenter-experiment-ids.json (built by
-    scripts/register-chaoscenter-experiments.py). Never fails the campaign --
-    a missing/unreachable catalog is a WARNING, since execution's own
-    correctness does not depend on it."""
+    """Optional check that every fault-space candidate is registered in ChaosCenter.
+
+    Lists the live ChaosCenter experiments and compares them with
+    experiments/chaoscenter-experiment-ids.json, which
+    scripts/register-chaoscenter-experiments.py writes. run_campaign calls it
+    once at the start of an LLM campaign on the litmus tool. It only prints
+    warnings and never affects selection or execution: the LLM arms choose
+    through Bedrock, and every injection runs from a local manifest. Set
+    CHAOS_BENCHMARK_SKIP_CHAOSCENTER_VERIFY to skip it.
+    """
     if os.environ.get("CHAOS_BENCHMARK_SKIP_CHAOSCENTER_VERIFY"):
         print("  ChaosCenter catalog verification skipped (CHAOS_BENCHMARK_SKIP_CHAOSCENTER_VERIFY set).")
         return
@@ -108,9 +98,9 @@ def verify_chaoscenter_catalog(fault_space: list) -> None:
         print(f"  ChaosCenter catalog verified live: all {len(fault_space)} fault-space "
               f"candidates are registered ChaosCenter experiments.")
 
-# Frozen campaign goal text for Component 3 (analysis/PREREGISTRATION.md's
-# discovery-curve-AUC primary metric and its weakness-class definition).
-# Kept as an f-string on CAMPAIGN_K so the prose can't drift from the actual
+# Campaign goal inserted into the selection prompt. It gives the model the
+# weakness definition behind the discovery-curve metric (Component 3 in
+# analysis/PREREGISTRATION.md). Built from CAMPAIGN_K so the text matches the
 # loop bound.
 CAMPAIGN_GOAL = (
     f"Maximize the number of DISTINCT resilience weaknesses discovered within "
@@ -140,11 +130,12 @@ class FaultCandidate:
 
 @dataclass
 class RunResult:
-    """One completed (or attempted) injection, as far as a Strategy needs to
-    know about it. `weakness_signals` is None for the not-yet-run stub used
-    by resume (candidate identity is known, outcome may not be, if only the
-    candidate needs reconstructing -- in practice we always have the full
-    injection JSON on resume, so this is populated)."""
+    """One injection as a Strategy sees it.
+
+    weakness_signals is the dict from compute_weakness_signals. It is empty or
+    None when no signals were computed, for example after a failed injection
+    or in a dry run. error holds the failure message, if any.
+    """
     candidate: FaultCandidate
     weakness_signals: Optional[dict] = field(default=None)
     error: Optional[str] = None
@@ -189,11 +180,11 @@ _DESCRIPTION_TEMPLATES = {
 
 
 def describe_candidate(c: FaultCandidate) -> str:
-    """Mechanical, factual one-line description built straight from
-    fault-space.yaml's own fields (scenario_template/category/target_service/
-    param) -- fed to the LLM strategy's prompt so the model sees id,
-    category, target service, and description per the fault-selection design
-    (../jss/ML_ARM_DESIGN.md)."""
+    """One-line factual description of a candidate, built from its fault-space.yaml fields.
+
+    Shown to the model in the selection prompt's fault-space list, and used as
+    the ChaosCenter experiment description by register-chaoscenter-experiments.py.
+    """
     template = _DESCRIPTION_TEMPLATES.get(c.scenario_template)
     if template is None:
         return f"{c.scenario_template} fault against {c.target_service}"
@@ -229,14 +220,12 @@ def llm_model_id(arm: str, config: Optional[dict] = None) -> str:
 ################################################################################
 
 class Strategy:
-    """Pluggable fault-selection strategy. `select` is called once per
-    injection, in order, with the history of injections already completed
-    in this campaign (oldest first), the full candidate fault space, and how
-    many injections remain including this one. Must return one candidate;
-    repeats across a campaign are allowed (K=10 < 36 candidates, so a
-    strategy MAY choose not to repeat, but nothing in the interface forbids
-    it -- e.g. a future `llm` strategy re-testing a candidate it suspects is
-    flaky).
+    """Base class for fault-selection strategies.
+
+    select() is called once per injection with the campaign's history so far
+    (oldest first), the full fault space, and the number of injections left
+    including this one. It returns one candidate. The interface allows
+    repeats; each strategy decides whether to avoid them.
     """
 
     name = "base"
@@ -246,10 +235,12 @@ class Strategy:
 
 
 class RandomStrategy(Strategy):
-    """Seeded random sampling without replacement (falls back to
-    with-replacement only if k_remaining ever exceeds the fault space size,
-    which can't happen at K=10 against 36 candidates, but is handled anyway
-    so this stays correct if CAMPAIGN_K ever grows)."""
+    """Seeded random sampling without replacement.
+
+    The fault space is shuffled once with the seed and read in order. If a
+    campaign ran longer than the fault space, it would continue with
+    replacement.
+    """
 
     name = "random"
 
@@ -260,27 +251,26 @@ class RandomStrategy(Strategy):
 
     def select(self, history, fault_space, k_remaining):
         if self._order is None:
-            # Deterministic for a given seed + fault_space ordering.
+            # Deterministic for a given seed and fault_space order.
             self._order = list(fault_space)
             self._rng.shuffle(self._order)
         idx = len(history)
         if idx < len(self._order):
             return self._order[idx]
-        # Exhausted the space (only reachable if CAMPAIGN_K > len(fault_space));
-        # reshuffle and continue with replacement.
+        # Only reachable if CAMPAIGN_K > len(fault_space).
         return self._rng.choice(fault_space)
 
 
 class CoverageStrategy(Strategy):
-    """Deterministic round-robin across category x target_service. Rotates
-    through categories in a fixed order (pod, network, resource,
-    application, as they appear in fault-space.yaml's metadata) and, within
-    the category whose turn it is, picks the first not-yet-tried
-    (category, service) combination in fault-space.yaml's listed order. Once
-    every combination has been tried at least once, falls back to the
-    least-tried combination (ties broken by candidate id) so a campaign
-    longer than the number of distinct combinations still makes progress
-    rather than repeating the same first candidate forever.
+    """Deterministic round-robin over category x target_service.
+
+    Categories are taken in alphabetical order (application, network, pod,
+    resource). Selection n, counting from 0, starts at category n modulo the
+    number of categories and returns the first candidate, in fault-space.yaml
+    order, whose (category, target_service) pair has not been tried. If that
+    category has no untried pair it moves to the next one. Once every pair
+    has been tried, it returns the least-tried pair, ties broken by candidate
+    id.
     """
 
     name = "coverage"
@@ -296,40 +286,35 @@ class CoverageStrategy(Strategy):
                 if c.category == cat and tried_combos[(c.category, c.target_service)] == 0:
                     return c
 
-        # Every combination tried at least once: pick the globally
-        # least-tried combination, deterministic tie-break on candidate id.
+        # Every pair tried at least once: least-tried pair, tie-break on id.
         return min(fault_space, key=lambda c: (tried_combos[(c.category, c.target_service)], c.id))
 
 
 class LLMStrategy(Strategy):
-    """LLM-driven fault selection (Component 3, analysis/PREREGISTRATION.md).
-    One instance is bound to a single frozen Bedrock arm (llm-claude /
-    llm-llama / llm-mistral, experiments/llm-config.yaml). `select()` builds
-    a prompt from prompts/selection.txt with the fault space (id, category,
-    target_service, description), the topology summary, and this campaign's
-    own history so far, asks the model for one JSON object
-    {"candidate_id": ..., "rationale": ...}, and validates the answer
-    against the fault space AND the not-yet-tried set.
+    """LLM fault selection through Amazon Bedrock (Component 3).
 
-    Validation semantics: an invalid response (malformed JSON, unknown
-    candidate_id, or an already-tried candidate_id) is re-prompted --
-    independently, not conversation-style, restating the specific error --
-    up to MAX_REPROMPTS times. If every attempt is invalid, `select()` falls
-    back to a seeded-random pick among untried candidates
-    (`self._fallback_rng`, seeded once at construction so a resumed campaign
-    reproduces the same fallback choices) and increments
-    `self.fallback_count`, which the campaign summary reports as a metric.
+    Each instance is bound to one arm in experiments/llm-config.yaml.
+    select() fills prompts/selection.txt with the campaign goal, the topology
+    summary, the 36-candidate fault space (id, category, target_service,
+    description), the campaign history and the untried ids, and asks the
+    model for {"candidate_id": ..., "rationale": ...}.
 
-    Every request/response -- valid, invalid, or a fallback -- is appended
-    as one line to `{campaign_dir}/llm-transcript.jsonl` (model id, prompt,
-    raw completion, raw API response, validation outcome). Reproducibility
-    depends on this transcript: Bedrock does not expose a sampling seed
-    uniformly across the three providers.
+    A response is invalid if it is not a JSON object, has no candidate_id,
+    names an id outside the fault space, or names one already tried in this
+    campaign. A failed API call also counts as invalid. After an invalid
+    response the model gets a fresh single-turn prompt that states the error,
+    for at most MAX_REPROMPTS attempts in total. If every attempt is invalid,
+    select() picks an untried candidate with a seeded RNG and increments
+    fallback_count, which the campaign summary reports.
 
-    Injectable for tests: pass any object implementing
-    `.invoke(prompt, temperature, max_tokens) -> object with .text/.raw`
-    (matching llmclient.LLMResponse's shape) as `client`; a real campaign
-    run passes an llmclient.BedrockClient bound to this arm's model id.
+    Every attempt and every fallback is appended to
+    {campaign_dir}/llm-transcript.jsonl with the prompt, raw completion, raw
+    API response and validation outcome. Bedrock has no sampling seed common
+    to all three providers, so this transcript is the reproducibility record.
+
+    client is any object with invoke(prompt, temperature, max_tokens) that
+    returns an object with .text and .raw, like llmclient.LLMResponse.
+    Campaigns pass an llmclient.BedrockClient; the tests pass a mock.
     """
 
     MAX_REPROMPTS = 3
@@ -357,9 +342,7 @@ class LLMStrategy(Strategy):
         tried_ids = {r.candidate.id for r in history}
         not_tried = [c for c in fault_space if c.id not in tried_ids]
         if not not_tried:
-            # Every candidate already tried at least once (unreachable at
-            # K=10 < 36 candidates, guarded anyway so this stays correct if
-            # CAMPAIGN_K ever grows past the fault-space size).
+            # Only reachable if CAMPAIGN_K > len(fault_space).
             not_tried = list(fault_space)
 
         injection_number = len(history) + 1
@@ -384,8 +367,7 @@ class LLMStrategy(Strategy):
                 return candidate_by_id(fault_space, candidate_id)
             previous_error = validation_error
 
-        # MAX_REPROMPTS invalid attempts: seeded-random fallback, logged and
-        # counted so it surfaces as a reported metric in the campaign summary.
+        # Every attempt invalid: seeded-random fallback, logged and counted.
         self.fallback_count += 1
         fallback_candidate = self._fallback_rng.choice(not_tried)
         self._log_transcript(
@@ -397,10 +379,11 @@ class LLMStrategy(Strategy):
         return fallback_candidate
 
     def _call_model(self, prompt: str) -> dict:
-        """Normalizes a successful LLMResponse and a raised exception into
-        the same shape, so `_validate` only has one error path to handle
-        regardless of whether the model answered badly or the API call
-        itself failed (timeout, throttling exhausted, etc.)."""
+        """Call the model and return a dict with text, model_id, raw and error.
+
+        An API exception is returned in error instead of raised, so _validate
+        treats a failed call the same way as a bad answer.
+        """
         try:
             resp = self.client.invoke(prompt=prompt, temperature=self.temperature,
                                        max_tokens=self.max_tokens)
@@ -508,11 +491,11 @@ STRATEGIES = {
 
 
 def strategy_choices() -> list[str]:
-    """--strategy's argparse choices: the two non-LLM strategies plus one
-    choice per frozen arm in experiments/llm-config.yaml (llm-claude,
-    llm-llama, llm-mistral). Falls back to just the non-LLM choices if the
-    config can't be read (keeps --help usable even with a broken/missing
-    llm-config.yaml)."""
+    """Choices for --strategy: random, coverage and each arm in experiments/llm-config.yaml.
+
+    If the config cannot be read, only the non-LLM choices are returned, so
+    --help still works.
+    """
     choices = list(STRATEGIES.keys())
     try:
         choices += llm_arm_names()
@@ -720,15 +703,11 @@ spec:
 
 
 def litmus_fault_params(candidate: FaultCandidate) -> tuple[str, dict]:
-    """Map a fault-space candidate to (litmus experiment/fault name, env dict).
+    """Map a candidate to its LitmusChaos fault name and env dict.
 
-    Single source of truth for the scenario_template -> real Litmus fault
-    mapping, shared by the local manifest path (render_litmus_manifest,
-    used by random/coverage strategies and chaos-mesh-style local execution)
-    and the ChaosCenter API path (litmus_chaoscenter_client, used by the
-    llm strategy's litmus arm -- see scripts/litmus_chaoscenter_client.py).
-    Keeping one mapping means a scenario's parameters can never drift
-    between the two execution paths.
+    render_litmus_manifest uses it to build the ChaosEngine for execution, and
+    register-chaoscenter-experiments.py uses it to register the ChaosCenter
+    catalog, so both carry the same parameters.
     """
     svc = candidate.target_service
     p = candidate.param
@@ -797,14 +776,13 @@ def render_litmus_manifest(candidate: FaultCandidate, campaign: int, run_number:
 
 
 def render_manifest(tool: str, candidate: FaultCandidate, campaign: int, run_number: int) -> str:
-    """Both render_chaos_mesh_manifest and render_litmus_manifest hardcode
-    the slot-0 namespace "social-network" in their f-string templates (never
-    made slot-aware, unlike chaoslib.render_experiment_manifest for the main
-    benchmark's static fault files -- found while wiring up 3-slot
-    parallelism for the 500-injection Component 3 campaign study, 2026-08-16).
-    Rather than threading a namespace parameter through every template
-    branch, substitute post-hoc here, the same pattern
-    chaoslib.render_experiment_manifest already uses. No-op at slot 0."""
+    """Render a candidate's fault manifest for the current slot's namespace.
+
+    The templates above hardcode the slot-0 namespace "social-network". For
+    other slots the namespace is rewritten to
+    chaoslib.namespace_for_slot(CHAOS_SLOT), as
+    chaoslib.render_experiment_manifest does for the static manifests.
+    """
     if tool == "chaos-mesh":
         manifest = render_chaos_mesh_manifest(candidate, campaign, run_number)
     elif tool == "litmus":
@@ -842,22 +820,22 @@ def _last_metric(metrics_data: dict, key: str) -> float:
 
 
 def compute_weakness_signals(protocol_results: dict, running_p99_median: Optional[float]) -> dict:
-    """SLO-violation flags consumed by discovery metrics later. Two of the
-    four (error_rate, pod_restarts) come straight from data run-experiment.py
-    already collects. The other two are approximations forced by the
-    protocol's single wrk2 job spanning baseline+fault+recovery (there is no
-    separate per-phase client-side latency measurement, matching the
-    limitation already present in --mode benchmark):
+    """Weakness flags for one injection, used by the discovery-curve metric.
 
-      - p99_over_3x_baseline: compares this injection's aggregate wrk2 p99
-        against the RUNNING MEDIAN of prior injections' aggregate p99 in the
-        same campaign, not a true within-injection baseline-phase-only
-        figure. None (not a violation) for the first injection, since there
-        is no running median yet.
-      - recovery_over_60s: approximated as "container CPU at the end of the
-        recovery phase is still >20% above the baseline-phase average",
-        i.e. the system had not visibly settled by the time the fixed 60s
-        recovery window ended -- not a measured wall-clock TTR.
+    error_rate comes from wrk2's error counts and pod_restarts from the
+    fault-phase Prometheus data. The other two flags are approximations,
+    because one wrk2 job spans baseline, fault and recovery, so there is no
+    per-phase client-side latency:
+
+      - p99_over_3x_baseline: whether this injection's whole-run wrk2 p99 is
+        more than 3x running_p99_median, the median p99 of the campaign's
+        earlier injections. None when there is no earlier p99, as on the
+        first injection.
+      - recovery_over_60s: whether container CPU at the end of the recovery
+        phase is above 1.2x the baseline-phase mean. The end value is the
+        highest per-pod value at the last recovery sample; the baseline mean
+        is over all pods and samples. It stands in for "not settled by the
+        end of the 60 s recovery window" and is not a measured recovery time.
     """
     wrk2 = protocol_results.get("wrk2", {})
     derived = protocol_results.get("derived", {})
@@ -918,9 +896,7 @@ def run_campaign(tool: str, strategy_name: str, campaign_number: int, seed: Opti
     elif strategy_name in STRATEGIES:
         strategy = STRATEGIES[strategy_name]()
     else:
-        # Not "random", not "coverage" -> must be one of the frozen LLM arms
-        # (llm-claude / llm-llama / llm-mistral); argparse's --strategy
-        # choices already reject anything else.
+        # Any other name is an LLM arm; argparse has already rejected unknown names.
         llm_config = load_llm_config()
         model_id = llm_model_id(strategy_name, llm_config)
         selection_cfg = llm_config.get("component3_selection", {})
@@ -930,15 +906,13 @@ def run_campaign(tool: str, strategy_name: str, campaign_number: int, seed: Opti
             arm=strategy_name, client=client, campaign_dir=campaign_dir, model_id=model_id,
             temperature=selection_cfg.get("temperature", 0.2),
             max_tokens=selection_cfg.get("max_tokens", 1024),
-            # Fallback RNG seed: --seed if given, else the campaign number,
-            # so a resumed campaign's fallback picks (if any) reproduce
-            # rather than depending on the number of prior calls.
+            # Fallback RNG seed: --seed if given, else the campaign number.
             fallback_seed=seed if seed is not None else campaign_number,
         )
         if tool == "litmus":
             verify_chaoscenter_catalog(fault_space)
 
-    # Reconstruct history from any injections already run (resume support).
+    # Rebuild the history from injections already on disk (resume).
     history: list[RunResult] = []
     for i in range(1, CAMPAIGN_K + 1):
         injection_file = campaign_dir / f"injection-{i}.json"
@@ -961,8 +935,8 @@ def run_campaign(tool: str, strategy_name: str, campaign_number: int, seed: Opti
         return
 
     if dry_run:
-        # Show what the remaining selections would be without touching the
-        # cluster or advancing any strategy state definitively.
+        # Print the remaining selections without touching the cluster. LLM
+        # arms still call Bedrock and append to the transcript.
         preview_history = list(history)
         for i in range(len(history) + 1, CAMPAIGN_K + 1):
             candidate = strategy.select(preview_history, fault_space, CAMPAIGN_K - i + 1)
@@ -1003,9 +977,9 @@ def run_campaign(tool: str, strategy_name: str, campaign_number: int, seed: Opti
                 running_p99_median = (sorted_p99[mid] if len(sorted_p99) % 2
                                        else (sorted_p99[mid - 1] + sorted_p99[mid]) / 2)
 
-            # Per-injection state reset, same rationale as the batch runners:
-            # weakness signals are only comparable across injections (and
-            # campaigns) from identical app state. CHAOS_RESET_STATE=0 disables.
+            # Reset application state before each injection so signals are
+            # comparable across injections and campaigns. CHAOS_RESET_STATE=0
+            # disables it.
             if os.environ.get("CHAOS_RESET_STATE", "1") == "1" and not dry_run:
                 reset_script = Path(__file__).resolve().parent / "reset-app-state.sh"
                 reset_rc = subprocess.run(
@@ -1140,9 +1114,9 @@ def write_campaign_summary(campaign_dir: Path, tool: str, strategy_name: str, ca
         "violation_counts": dict(violation_counts),
         "injections": injections,
     }
-    # Only present for LLM-arm campaigns: how many of the CAMPAIGN_K
-    # selections fell back to a seeded-random pick after MAX_REPROMPTS
-    # invalid model responses (see LLMStrategy). Reported as a metric.
+    # LLM arms only: fallbacks counted by this process. After a resume it
+    # covers only the injections run since then; llm-transcript.jsonl has
+    # the full record.
     if llm_fallback_count is not None:
         summary["metadata"]["llm_fallback_count"] = llm_fallback_count
     summary_file = campaign_dir / "campaign-summary.json"
@@ -1156,7 +1130,7 @@ def write_campaign_summary(campaign_dir: Path, tool: str, strategy_name: str, ca
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Chaos Benchmark Campaign Runner (ML fault-selection study scaffold)",
+        description="Chaos Benchmark campaign runner (Component 3 fault-selection study)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1169,15 +1143,16 @@ Examples:
     parser.add_argument("--tool", required=True, choices=["chaos-mesh", "litmus"],
                         help="Chaos engineering tool")
     parser.add_argument("--strategy", required=True, choices=strategy_choices(),
-                        help="Fault-selection strategy: random, coverage, or one of the "
-                             "frozen LLM arms in experiments/llm-config.yaml "
-                             "(llm-claude / llm-llama / llm-mistral)")
+                        help="Fault-selection strategy: random, coverage, or an LLM arm "
+                             "from experiments/llm-config.yaml "
+                             "(llm-claude, llm-llama, llm-mistral)")
     parser.add_argument("--campaign", required=True, type=int,
                         help="Campaign number (distinguishes repeated campaign runs of the same strategy)")
     parser.add_argument("--seed", type=int, default=None,
                         help="RNG seed (required for --strategy random)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Print the selections that would be made without touching the cluster")
+                        help="Print the selections that would be made without touching the cluster "
+                             "(LLM arms still call Bedrock)")
     return parser.parse_args()
 
 

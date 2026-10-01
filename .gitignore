@@ -14,14 +14,13 @@ data/*.parquet
 data/progress.log
 !data/.gitkeep
 
-# Revision-campaign experiment output (data-v2/): same rationale as data/
-# above -- large per-run JSON + gzipped timeseries sidecars, not source.
-# Code/config under data-v2 is never expected; this excludes the whole tree.
+# Experiment output (data-v2/): large per-run JSON and gzipped timeseries
+# sidecars, archived on Zenodo. Only its README is tracked.
 data-v2/*
 !data-v2/README.md
 
-# One-off pilot/validation runs (see data-v2/README.md for why these must
-# never live under data-v2/) -- also experiment output, not source.
+# Pilot and validation runs, kept out of data-v2/ so analysis globs never
+# match them.
 pilots/
 
 # Credentials and secrets
@@ -35,7 +34,7 @@ litmus-credentials.json
 .DS_Store
 Thumbs.db
 
-# DeathStarBench submodule (tracked by .gitmodules, don't ignore)
+# DeathStarBench is a submodule (.gitmodules), not ignored.
 
 # Python
 __pycache__/
@@ -52,15 +51,15 @@ __pycache__/
 *.log
 *.out
 *.synctex.gz
-# exclusions.log is a pre-registered reproducibility record (PREREGISTRATION.md
-# "Exclusion and rerun rules"), not a build/run log -- must stay tracked.
+# data/exclusions.log is the exclusion record required by
+# analysis/PREREGISTRATION.md ("Exclusion and rerun rules"), so keep it tracked.
 !data/exclusions.log
 
-# Screenshots (internal only)
+# Screenshots
 screenshots/
 
 # Terraform variables (contains AWS account IDs)
 terraform/terraform.tfvars
 
-# Project notes
+# Local notes
 CLAUDE.md

@@ -1,171 +1,142 @@
 # Chaos Engineering Benchmark
 
-Reproducibility package for the paper (working title):
+Code, configuration and analysis for the study "Machine Learning for Chaos Engineering: A Taxonomy and a Three-Phase Empirical Evaluation of Fault Selection, Hypothesis Generation, and Impact Detection" (Mateen Ali Anjum, Phono Technologies Inc., Kitchener, ON, Canada).
 
-> **Machine learning for chaos engineering: an empirical study of fault-selection, hypothesis-generation, and impact-detection strategies on microservices**
->
-> Mateen Ali Anjum, Phono Technologies Inc., Kitchener, ON, Canada
->
-> Manuscript in preparation, 2026. An earlier, narrower version of this manuscript (a 2-tool benchmark with no ML component) was rejected after full peer review by *Software: Practice and Experience* (Wiley) in August 2026; both reviewers' core objection was that the title promised machine learning while the empirical work contained none. This repository reflects the reworked study, which adds three genuine ML components (Components 3-5 below) built and run against the same infrastructure. The rejected version is preserved at `../archive/spe-rejected-2026-08-15/`.
+The study runs five components against the [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network application on AWS EKS. The raw data is on Zenodo (see [Data](#data)).
 
-This repository contains the infrastructure code, experiment definitions, orchestration scripts, and statistical analysis for five components run against a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed on AWS EKS; the raw experiment data is archived separately on Zenodo (see Data Availability below):
+The statistical plan, every dated amendment and the reasons for each are in [`analysis/PREREGISTRATION.md`](analysis/PREREGISTRATION.md). Read its 2026-09-30 erratum first. The plan was first committed after all Component 2 runs and the first 20 Component 1 runs had started, and the erratum lists the later deviations.
 
-| # | Component | What it measures | Status |
-|---|-----------|-------------------|--------|
-| 1 | Tool benchmark | Chaos Mesh vs LitmusChaos, 12 fault scenarios x n=30 reps (720 runs) | Complete |
-| 2 | Overhead decomposition | Effect of an installed idle tool, and of a fault, on the application pods' mean CPU and memory, 3 configs x 10 reps | Complete for Chaos Mesh; LitmusChaos not reported (see the erratum in `analysis/PREREGISTRATION.md`) |
-| 3 | Fault-selection strategy | 5 arms (random, coverage heuristic, 3 LLMs) x 10 campaigns x K=10 injections (500 injections) | Complete |
-| 4 | LLM hypothesis generation | 3 LLMs predict fault impact from topology + baseline telemetry alone, scored against real ground truth (36 candidates) | Complete |
-| 5 | ML impact detection | EWMA / Isolation Forest / autoencoder / Deep SVDD vs a static-threshold baseline, trained per-run on Component 1's 720 sidecars | Complete |
+## Components
 
-Every component's statistical methodology (metrics, tests, corrections, and each mid-study amendment with the reason it was made) is in [`analysis/PREREGISTRATION.md`](analysis/PREREGISTRATION.md). Read its 2026-09-30 erratum first: the plan's first commit came after the Component 2 runs and the first 20 Component 1 runs, and the erratum lists every later deviation. This README summarizes the plan.
+| # | Component | What it does |
+|---|-----------|--------------|
+| 1 | Tool benchmark | Chaos Mesh vs LitmusChaos on 12 fault scenarios, 30 runs per tool per scenario (720 runs), crossover across two clusters. |
+| 2 | Overhead decomposition | Chaos Mesh only. Mean CPU and memory per pod in the application namespace (application pods and load generator, not the tool's own pods) with no tool, with the tool idle, and during a fault, 10 runs each. |
+| 3 | Fault selection | 5 strategies (random, coverage heuristic, 3 LLMs) x 10 campaigns x 10 injections (500 injections) from a 36-candidate fault space. |
+| 4 | Hypothesis generation | 3 LLMs predict each candidate's throughput impact from topology and baseline telemetry only (540 samples), scored against Component 3's measured outcomes. |
+| 5 | Impact detection | EWMA, Isolation Forest, autoencoder and Deep SVDD, trained per run on the baseline phase of each Component 1 run's telemetry, against a static-threshold baseline. |
 
-## Key Results
+## Key results
 
-**Component 1** (n=30/cell, Mann-Whitney U, Holm-Bonferroni within metric family): 2 of 12 scenarios show a significant, large-effect throughput difference between tools after correction -- HTTP Abort 503 (Chaos Mesh 77.5 vs LitmusChaos 115.6 rps, Cliff's d = -1.00) and Container Kill (Chaos Mesh 119.6 vs LitmusChaos 103.8 rps, d = +1.00). The other 10 scenarios show no significant difference.
+The numbers below come from `analysis/results/`.
 
-**Component 2** (mean per pod across the application namespace, not the tools' own pods): with Chaos Mesh installed and idle, the application pods' CPU and memory do not change measurably (both CIs cross zero). During a fault they rise by 0.0093 cores per pod and 2.41 MB (both CIs exclude zero). LitmusChaos is not reported, because it runs its runner and fault pods inside the application namespace, so its per-pod average is not comparable.
+- In Component 1, 2 of 12 scenarios differ in throughput between tools after Holm correction: HTTP Abort 503 (median 77.5 rps Chaos Mesh vs 115.6 rps LitmusChaos, Cliff's delta -1.00) and Container Kill (119.6 vs 103.8 rps, delta +1.00). The other 10 do not.
+- In Component 2, with Chaos Mesh installed and idle, application CPU and memory per pod do not change measurably (both 95% CIs include zero). During a fault they rise by 0.0093 cores and 2.41 MB per pod (both CIs exclude zero). LitmusChaos is not reported because it runs its runner and fault pods in the application namespace.
+- In Component 3, the Kruskal-Wallis test across the 5 arms gives H = 24.39, p = 0.00007. The coverage heuristic finds fewer weakness classes than each of the other four arms (Holm-corrected p < 0.01). Random and the three LLM arms do not differ from each other.
+- In Component 4, no LLM beats chance (balanced accuracy 0.5). Claude scores 0.469, Mistral 0.519 and Llama 0.500, because Llama predicts "degrade" for every candidate. The practitioner heuristic scores 0.575 against 0.5 for an always-majority baseline. No significance test is registered for this component.
+- In Component 5, on the 299 runs where the static-threshold baseline is not constant, Isolation Forest (median AUC-ROC 0.884) and the autoencoder (0.849) beat the baseline (0.840), Deep SVDD (0.811) does not differ, and EWMA (0.618) is worse (paired Wilcoxon, Holm-corrected). Medians over all 719 scored runs are 0.883, 0.827, 0.805 and 0.582.
 
-**Component 3** (Kruskal-Wallis across 5 arms, H=24.39, p=0.00007): the `coverage` heuristic is significantly worse at discovering unique weakness classes than all four other arms (large effects, Holm-corrected p<0.01 vs each). Random and all three LLM arms are statistically indistinguishable from each other -- LLM-driven fault selection does not significantly improve discovery over random selection.
+In Components 3 to 5, the LLM approaches do not beat the simpler baselines (random selection, a majority-class rule, a static threshold). The two detectors that beat their baseline are not LLM-based.
 
-**Component 4**: none of the three LLMs beat chance (0.5) at predicting fault impact from topology alone (Claude 0.469, Mistral 0.519, Llama 3 a degenerate constant predictor mechanically pinned at 0.5). A practitioner heuristic modestly beats a trivial always-predict-majority-class baseline (0.575 vs 0.5), but no pairwise significance test is registered for this component.
+## Setup
 
-**Component 5**: on the 299-run paired subset used for the confirmatory test, Isolation Forest (median AUC-ROC 0.884) and a reconstruction autoencoder (0.849) significantly beat a static-threshold baseline (0.840, paired Wilcoxon, Holm-corrected p<0.001 both); Deep SVDD (0.811) does not differ significantly; EWMA (0.618) is significantly worse than the baseline. (Full-719-run descriptive medians, not directly comparable to the baseline: 0.883 / 0.827 / 0.805 / 0.582 respectively.)
+- AWS EKS 1.31 in `ca-central-1`, ON_DEMAND nodes, one instance type per cluster.
+- `is-chaos-bench-a` and `is-chaos-bench-b` (m5.xlarge) ran Components 1 and 2. Each cluster ran both tools in counterbalanced order. Component 2 ran on 3 nodes with one copy of the application. All but 4 Component 1 runs ran on 9 nodes, almost all of them as three isolated copies of the application (slots, `scripts/SLOT_PARALLELISM.md`).
+- `is-chaos-ml` (3 x m5.2xlarge, three slots) ran Component 3. Components 4 and 5 use the collected data and need no cluster.
+- The application is DeathStarBench Social Network with the resource override in `helm/dsb-values.yaml`, monitored with kube-prometheus-stack and Jaeger. [wrk2](https://github.com/giltene/wrk2) offers 120 rps.
+- Every run starts with an application-state reset (`scripts/reset-app-state.sh`) and a 120 s warm-up that is excluded from measurement. Phase durations are constants in `scripts/chaoslib.py`.
+- `experiments/scenarios.yaml` lists Component 1's 12 scenarios. `experiments/fault-space.yaml` lists the 36 candidates used by Components 3 and 4 (12 fault templates x 3 target services).
+- The LLM arms call Amazon Bedrock directly. Model IDs, temperatures and token limits are in `experiments/llm-config.yaml`, and the prompts are in `scripts/prompts/`.
 
-The throughline across Components 3-5: LLM-driven approaches do not clearly beat simpler baselines anywhere in this study (random selection, a majority-class baseline, and a static threshold rule, respectively) -- the two detectors that do beat their baseline (Isolation Forest, autoencoder) are not LLM-based. This is reported as a finding, not smoothed over.
-
-## Experimental Setup
-
-### Infrastructure
-
-- **Cluster**: AWS EKS 1.31, `ca-central-1`, ON_DEMAND `m5.xlarge` (Components 1/2) or `m5.2xlarge` (Component 3, upsized after a CPU-scheduling deadlock during 3-slot parallel campaigns)
-- **Three clusters, all now torn down after data collection completed**: `is-chaos-bench-a` and `is-chaos-bench-b` ran Component 1's crossover design (each cluster runs both tools, counterbalanced) plus Component 2's overhead isolation runs; `is-chaos-ml` ran Component 3's 500-injection campaign (3-slot intra-cluster parallelism). Components 4 and 5 are analysis-phase only -- no cluster time, scored/trained against already-collected data.
-- **Application**: DeathStarBench Social Network (27 microservices)
-- **Monitoring**: Prometheus (kube-prometheus-stack) + Grafana + Jaeger; per-run gzipped Prometheus timeseries sidecars are the raw substrate for Component 5's detectors.
-
-### Fault space
-
-Component 1 uses the original 12 scenarios (`experiments/scenarios.yaml`). Components 3/4 use an expanded 36-candidate fault space (`experiments/fault-space.yaml`) that crosses each of the 12 fault templates against up to 3 target services.
-
-### Protocol
-
-Every run: a full application-state reset (`scripts/reset-app-state.sh`), then an excluded warm-up, then baseline load, fault injection, recovery, and (for Component 1/2) a cooldown phase. Exact durations per component are frozen constants (`chaoslib.py` / `run-campaign.py`) and documented in `analysis/PREREGISTRATION.md`. Load is generated by [wrk2](https://github.com/giltene/wrk2).
-
-## Repository Structure
+## Repository layout
 
 ```
-chaos-benchmark/
-├── analysis/
-│   ├── PREREGISTRATION.md         # Authoritative methods + all dated amendments -- read this first
-│   ├── analyze.py                 # Component 1: Mann-Whitney U, Holm-Bonferroni, Cliff's delta+BCa CI
-│   ├── component2_analyze.py      # Component 2: overhead decomposition
-│   ├── component3_analyze.py      # Component 3: discovery-curve AUC, Kruskal-Wallis
-│   ├── tables.py, figures.py      # Component 1 tables/figures (read analyze.py's CSVs only)
-│   ├── tables_figures_ml.py       # Components 3/4/5 tables/figures
-│   ├── figures/, tables/          # Generated outputs (PDF + PNG, .tex)
-│   └── results/                   # CSV/JSON outputs -- the single source of truth per component
-├── data-v2/                       # Current dataset (superseded a Feb-era data/ with an SPE-flagged
-│   │                               # SPOT/mixed-instance confound, kept archived, never mixed in)
-│   ├── bench-a/, bench-b/         # Component 1 (crossover) + Component 2 (overhead) runs
-│   └── ml/campaigns/              # Component 3's 500 injections (5 arms x 10 campaigns x 10)
-│       ml/hypotheses/             # Component 4's 540 LLM prediction samples
-├── experiments/
-│   ├── scenarios.yaml             # Component 1's 12 scenarios
-│   └── fault-space.yaml           # Components 3/4's 36-candidate fault space
-├── scripts/
-│   ├── chaoslib.py                # Shared protocol/metrics library
-│   ├── run-all-experiments.sh, run-overhead.sh   # Component 1/2 orchestration
-│   ├── run-campaign.py, run-all-campaigns.sh     # Component 3 fault-selection campaigns
-│   ├── run-hypothesis-generation.py, score-hypotheses.py, practitioner_heuristic.py  # Component 4
-│   ├── component5_features.py, component5_detectors.py, component5_evaluate.py       # Component 5
-│   ├── litmus_chaoscenter_client.py, register-chaoscenter-experiments.py  # ChaosCenter registration (not used during the campaigns, see erratum)
-│   └── watchdogs/                 # Long-running campaign monitors (stall/error/cluster-health detection)
-├── terraform/                     # EKS infrastructure (VPC, EKS, addons), 3 workspaces
-└── DeathStarBench/                # Vendored source (wrk2 build context)
+analysis/
+  PREREGISTRATION.md          analysis plan, amendments, 2026-09-30 erratum
+  analyze.py                  Component 1 tests, effect sizes, robustness views
+  component2_analyze.py       Component 2
+  component3_analyze.py       Component 3
+  component5_sensitivity.py   Component 5 post hoc sensitivity analysis
+  tables.py, figures.py       Component 1 tables and figures
+  tables_figures_ml.py        Components 3, 4 and 5 tables and figures
+  results/, tables/, figures/ generated outputs
+data/exclusions.log           excluded runs (see the plan's exclusion rules)
+data-v2/README.md             layout of the raw data (data-v2/ itself is not in git)
+experiments/                  scenarios, fault space, LLM configuration, fault manifests
+helm/, manifests/             Helm values and Kubernetes manifests
+load-generator/               wrk2 image and workload script
+scripts/
+  chaoslib.py                 shared run protocol, wrk2, Prometheus and sidecar code
+  run-experiment.py, run-all-experiments.sh, run-overhead.sh   Components 1 and 2
+  run-campaign.py, run-all-campaigns.sh                        Component 3
+  run-hypothesis-generation.py, score-hypotheses.py, practitioner_heuristic.py  Component 4
+  component5_features.py, component5_detectors.py, component5_evaluate.py       Component 5
+  setup.sh, deploy-dsb.sh, post-deploy.sh, teardown.sh, ...    cluster setup
+  watchdogs/                  monitors for long-running batches
+  CAMPAIGN_MODES.md, SLOT_PARALLELISM.md                       how to run the batches
+terraform/                    VPC, EKS and add-ons, one workspace per cluster
+DeathStarBench/               git submodule
 ```
 
-## Reproducing the Analysis (no cluster required)
+## Reproducing the analysis
 
-Raw data is not committed to this repository (`data-v2/` is gitignored; the JSON/timeseries files are large per-run outputs, not source). It is archived separately on Zenodo (see Data Availability below) -- download and extract it to `data-v2/` before running the commands below. To regenerate every table, figure, and statistical result from scratch:
+No cluster is needed. Download the three data archives from Zenodo and unzip them in the repository root so that `data-v2/bench-a`, `data-v2/bench-b` and `data-v2/ml` exist.
 
 ```bash
-cd chaos-benchmark
 python3 -m venv .venv && source .venv/bin/activate
 pip install numpy scipy pandas matplotlib seaborn pyyaml scikit-learn torch
 
-cd analysis
-python3 analyze.py              # Component 1
-python3 component2_analyze.py   # Component 2
-python3 component3_analyze.py   # Component 3
-cd ../scripts
-python3 score-hypotheses.py     # Component 4
-python3 component5_evaluate.py  # Component 5 (~2 min on Apple Silicon CPU; no GPU needed)
-cd ../analysis
-python3 tables.py               # Component 1 LaTeX tables
-python3 figures.py              # Component 1 figures
-python3 tables_figures_ml.py    # Components 3/4/5 tables + figures
+python3 analysis/analyze.py               # Component 1
+python3 analysis/component2_analyze.py    # Component 2
+python3 analysis/component3_analyze.py    # Component 3
+python3 scripts/score-hypotheses.py       # Component 4
+python3 scripts/component5_evaluate.py    # Component 5 (about 2 minutes on an Apple Silicon CPU, no GPU)
+python3 analysis/component5_sensitivity.py
+python3 analysis/tables.py
+python3 analysis/figures.py
+python3 analysis/tables_figures_ml.py
 ```
 
-## Reproducing the Full Campaign (requires re-provisioning infrastructure)
+Outputs are written to `analysis/results/`, `analysis/tables/` and `analysis/figures/`.
 
-`CHAOS_DATA_DIR` has no default and must always be set explicitly (a missing/wrong default here silently misdirected several runs during development -- see git history on `scripts/chaoslib.py`).
+## Rerunning the experiments
+
+This needs an AWS account with EKS and Amazon Bedrock access. The outline below is for `bench-a`. `scripts/CAMPAIGN_MODES.md` documents every flag and environment variable, and `scripts/SLOT_PARALLELISM.md` covers running three slots per cluster.
 
 ```bash
-cd terraform && terraform init
-terraform workspace new bench-a && terraform apply -var-file=envs/bench-a.tfvars
-cd .. && ./scripts/setup.sh bench-a && ./scripts/post-deploy.sh && ./scripts/smoke-test.sh
+git submodule update --init --recursive
+terraform -chdir=terraform init
+terraform -chdir=terraform workspace new bench-a
+terraform -chdir=terraform apply -var-file=envs/bench-a.tfvars
+
+SETUP_TOOLS=both ./scripts/setup.sh bench-a   # monitoring, Chaos Mesh and LitmusChaos
+./scripts/deploy-dsb.sh                       # DeathStarBench
+./scripts/post-deploy.sh                      # Litmus RBAC and ChaosExperiments, social graph
+./scripts/smoke-test.sh
 ./scripts/build-wrk2-image.sh
+source scripts/campaign-env.sh                # region, wrk2 image, offered load
+export CHAOS_DATA_DIR="$(pwd)/data-v2/bench-a"   # required, no default
 
-export CHAOS_DATA_DIR="$(pwd)/data-v2/bench-a"
-./scripts/run-all-experiments.sh --tool chaos-mesh --reps 30    # Component 1
-./scripts/run-overhead.sh                                        # Component 2
-
-export CHAOS_DATA_DIR="$(pwd)/data-v2/ml"
-./scripts/run-all-campaigns.sh --tool litmus                     # Component 3
+./scripts/run-all-experiments.sh --tool chaos-mesh --reps 15               # Component 1, reps 1-15
+./scripts/run-all-experiments.sh --tool litmus --start-rep 16 --reps 30    # reps 16-30
 
 ./scripts/teardown.sh bench-a
 terraform -chdir=terraform destroy -var-file=envs/bench-a.tfvars
 ```
 
-Tear down `bench-a` last if it owns the shared S3 artifacts bucket (`create_s3_bucket = true` in its tfvars).
+`bench-b` runs the tools in the opposite order. Component 2 needs the cluster without any chaos tool for its first stage, so it runs before the tools are installed (order in `scripts/CAMPAIGN_MODES.md`). Component 3 runs on the `ml` cluster with one `CHAOS_SLOT=<0|1|2> ./scripts/run-all-campaigns.sh` process per slot. Component 4 generation is `python3 scripts/run-hypothesis-generation.py`. `bench-a` creates the shared S3 bucket (`create_s3_bucket = true`), so destroy it last.
 
-## Data Format
+## Data
 
-Each Component 1/2/3 run/injection produces a JSON file with `metadata` (tool/scenario/timestamps/protocol), `wrk2` (throughput, latency percentiles, error counts), `phases` (per-phase start/end + Prometheus `infra_metrics`), and `derived` (pod restarts, CPU/memory spike). Component 1 runs additionally have a gzipped `.timeseries.json.gz` sidecar: 5-second-step Prometheus series (container CPU/memory/network, pod restarts, node CPU/memory) spanning baseline through recovery -- Component 5's raw substrate. Component 4 samples are per-(model, candidate) JSON predictions in `data-v2/ml/hypotheses/`.
+The raw data for all five components is on Zenodo under CC BY 4.0:
 
-## Statistical Methods
+- Concept DOI [10.5281/zenodo.22004603](https://doi.org/10.5281/zenodo.22004603), which resolves to the latest version.
 
-- **Component 1**: two-sided Mann-Whitney U per scenario (unpaired), Holm-Bonferroni within each metric family, Cliff's delta with 95% BCa bootstrap CIs (10,000 resamples; percentile fallback where BCa is degenerate under perfect separation).
-- **Component 2**: descriptive only, bootstrap median differences with 95% percentile CIs; no significance test is registered.
-- **Component 3**: Kruskal-Wallis across the 5 arms on discovery-curve AUC; if significant, pairwise Mann-Whitney U with Holm correction and Cliff's delta.
-- **Component 4**: balanced accuracy with 95% percentile bootstrap CIs; descriptive only, no significance test registered.
-- **Component 5**: AUC-ROC per detector with 95% percentile bootstrap CIs across runs; paired Wilcoxon signed-rank vs the static-threshold baseline, Holm-corrected across the 4 detectors.
-
-Full detail, including every mid-study amendment and why it was made, is in `analysis/PREREGISTRATION.md`.
-
-## Data Availability
-
-The raw experiment data for all five components (720 Component 1 runs, 60 Component 2 runs, 500 Component 3 injections, 540 Component 4 generations, Component 5 detector-scoring outputs) is archived on Zenodo:
-
-- DOI: [10.5281/zenodo.22004603](https://doi.org/10.5281/zenodo.22004603) (concept DOI, always resolves to the latest version), CC BY 4.0.
-
-This supersedes the earlier concept DOI 10.5281/zenodo.20574917, which archived only the superseded n=5 pilot dataset (120 runs, two tools, no ML components) from this study's original SPE submission -- do not use it for this rework. All infrastructure code, experiment manifests, orchestration scripts, and statistical analysis are in this repository.
-
-## Citation
-
-If you use this benchmark in your research, please cite:
-
-```bibtex
-@misc{anjum2026chaos,
-  title={Machine Learning for Chaos Engineering: A Taxonomy and a
-         Three-Phase Empirical Evaluation of Fault Selection, Hypothesis
-         Generation, and Impact Detection},
-  author={Anjum, Mateen Ali},
-  year={2026},
-  note={Manuscript in preparation}
-}
-```
+It holds three archives (`bench-a`, `bench-b`, `ml`). [`data-v2/README.md`](data-v2/README.md) describes their layout and file formats. The older concept DOI 10.5281/zenodo.20574917 holds a superseded pilot dataset and does not match this code.
 
 ## License
 
-CC BY 4.0. See [LICENSE](LICENSE) for details.
+CC BY 4.0. See [LICENSE](LICENSE).
+
+## Citation
+
+```bibtex
+@misc{anjum2026chaos,
+  title  = {Machine Learning for Chaos Engineering: A Taxonomy and a
+            Three-Phase Empirical Evaluation of Fault Selection, Hypothesis
+            Generation, and Impact Detection},
+  author = {Anjum, Mateen Ali},
+  year   = {2026},
+  note   = {Manuscript in preparation. Data: https://doi.org/10.5281/zenodo.22004603}
+}
+```

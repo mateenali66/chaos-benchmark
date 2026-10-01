@@ -1,21 +1,20 @@
 #!/usr/bin/env -S python3 -u
 """
-Experiment Watchdog
-Watches a chaos-benchmark campaign's progress log (data/progress.log format,
-written by scripts/run-all-experiments.sh) and flags:
+Experiment watchdog.
+
+Watches a progress log (data/progress.log format, written by
+scripts/run-all-experiments.sh and scripts/run-overhead.sh) and alerts on:
 
   - no new completed run (a "  PASS: tool / scenario / run N" line) within
-    --stall-minutes (default: 25)
-  - any run that reports "  FAIL: tool / scenario / run N"
-  - the runner process (given via --pidfile) is dead while runs remain
-    (parsed from the most recent "[current/total]" progress marker, or the
-    "Batch Complete" trailer if the run finished)
+    --stall-minutes (default 25)
+  - a new "  FAIL: tool / scenario / run N" line
+  - the runner process (--pidfile) is dead while runs remain, judged from
+    the latest "[current/total]" progress marker or the "Batch Complete"
+    trailer
 
-Writes one JSON object per line (JSONL) to --status-file on every poll,
-regardless of health. On any alert condition it ALSO touches a sentinel file
-at "<status-file>.ALERT" (create-or-update mtime) so an outer monitor can
-`test -f`/watch mtime without parsing JSON, then keeps looping -- this
-watchdog never exits on its own.
+Appends one JSON object per poll to --status-file (JSONL), healthy or not.
+On any alert it also touches "<status-file>.ALERT" so an outer monitor can
+watch that file without parsing JSON. Never exits on its own.
 
 Usage:
   python3 -u experiment-watchdog.py data/progress.log \
@@ -27,9 +26,9 @@ The pidfile is written by whoever launches run-all-experiments.sh, e.g.:
   nohup ./scripts/run-all-experiments.sh > data/run-all.log 2>&1 &
   echo $! > data/watchdogs/bench-a/run-all.pid
 
-Runs unbuffered (shebang: `env -S python3 -u`; stdout/stderr also
-reconfigured to line-buffered below as a belt-and-suspenders fallback for
-invocations that strip shebang args, e.g. `python3 experiment-watchdog.py`).
+Runs unbuffered: the shebang passes -u, and stdout/stderr are also set to
+line buffering below for invocations that drop shebang arguments
+(e.g. `python3 experiment-watchdog.py`).
 """
 import argparse
 import json
@@ -44,22 +43,17 @@ try:
     sys.stdout.reconfigure(line_buffering=True)
     sys.stderr.reconfigure(line_buffering=True)
 except AttributeError:
-    pass  # Python < 3.7 fallback; not expected in this environment
+    pass  # Python < 3.7 has no reconfigure()
 
 # Two log grammars share progress.log:
 #   benchmark (run-all-experiments.sh):  "  PASS: tool / scenario / run N"
 #                                        "[current/total] RUN|SKIP"
 #   overhead/campaign (run-overhead.sh): "[idle 3/10] PASS" / "[baseline 1/10] RUN  label"
 #
-# Slot parallelism (run-all-experiments.sh --slot N, N!=0) prepends a literal
-# "[slot N] " to EVERY benchmark-grammar line it emits (PASS, FAIL, the
-# [current/total] marker, and Batch Complete) -- confirmed against
-# run-all-experiments.sh's LOG_PREFIX usage, applied to all of its emitted
-# lines. The original anchors here (^\s*) cannot skip over that literal
-# prefix text, so every regex below tolerates an optional leading
-# "[slot N] " before the benchmark-grammar branch. run-overhead.sh has no
-# slot support and never emits this prefix, so the overhead-grammar branch
-# is left as-is.
+# With --slot N (N != 0), run-all-experiments.sh prefixes every line it
+# emits (PASS, FAIL, the [current/total] marker, Batch Complete) with
+# "[slot N] ", so the benchmark-grammar branches accept that optional
+# prefix. run-overhead.sh has no slots and never emits it.
 _SLOT_PREFIX = r"(?:\[slot \d+\]\s*)?"
 PASS_RE = re.compile(
     rf"^{_SLOT_PREFIX}\s*PASS:\s*(\S+)\s*/\s*(\S+)\s*/\s*run\s*(\d+)"
@@ -109,9 +103,8 @@ def read_log(path):
 
 
 def analyze_log(text):
-    """Parse the whole progress log (cheap for this project's scale: a full
-    120-run campaign is a few thousand lines) and return counts + the latest
-    progress marker."""
+    """Parse the whole progress log (a few thousand lines per campaign) and
+    return counts and the latest progress marker."""
     passes = PASS_RE.findall(text)
     fails = FAIL_RE.findall(text)
 
@@ -130,9 +123,9 @@ def analyze_log(text):
     else:
         current, total = 0, 0
 
-    # Positional: multiple stages append to one log, so "complete" only counts
-    # if nothing has STARTED after the last completion line (else stage (a)'s
-    # completion would suppress stall detection for stages (b)/(c) forever).
+    # Several stages append to one log, so "complete" counts only if no
+    # progress marker follows the last completion line. Otherwise stage
+    # (a)'s completion would suppress stall detection for stages (b) and (c).
     complete_matches = list(BATCH_COMPLETE_RE.finditer(text))
     marker_matches = list(PROGRESS_MARKER_RE.finditer(text))
     batch_complete = bool(complete_matches) and (
@@ -172,15 +165,12 @@ def main():
     print(f"[experiment-watchdog] log={args.progress_log} stall_minutes={args.stall_minutes} "
           f"pidfile={args.pidfile} status_file={status_file}", flush=True)
 
-    # Grace period: give the campaign stall_minutes from when THIS watchdog
-    # started before declaring a stall, since PASS lines carry no completion
-    # timestamp of their own -- we track wall-clock time between polls
-    # instead of trying to reconstruct historical completion times.
+    # PASS lines carry no timestamp, so a stall is measured in wall-clock
+    # time between polls, starting when this watchdog starts.
     last_pass_count = None
     last_progress_wallclock = time.time()
-    # Failure alerts fire only on INCREASES: fail_count is cumulative over the
-    # whole log, so alerting whenever it is nonzero re-alerts every poll on
-    # the same historical failure forever. Baseline = count at watchdog start.
+    # fail_count is cumulative over the whole log, so alert only when it
+    # rises. The count at watchdog start is the baseline.
     last_fail_count = None
 
     while True:

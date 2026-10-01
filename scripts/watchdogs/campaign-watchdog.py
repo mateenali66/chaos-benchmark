@@ -1,43 +1,36 @@
 #!/usr/bin/env -S python3 -u
 """
-Campaign Watchdog (Component 3: 5 arms x 10 campaigns x 10 injections = 500
-injections, run-all-campaigns.sh across 3 slots on is-chaos-ml).
+Campaign watchdog for Component 3 (5 arms x 10 campaigns x 10 injections =
+500 injections, run by run-all-campaigns.sh across 3 slots on is-chaos-ml).
 
-Unlike experiment-watchdog.py (which parses a shared progress.log's PASS/FAIL
-line grammar), campaign progress lands as JSON files directly
+Campaign progress lands as JSON files
 (data-v2/ml/campaigns/{arm}/campaign-{N}/injection-{i}.json), so this
-watchdog polls the filesystem instead of parsing logs: total injection-file
-count across all 50 campaigns, and each slot driver's own PID liveness via
---pidfile (one per slot, comma-separated).
+watchdog polls the filesystem rather than parsing a log as
+experiment-watchdog.py does. It tracks the injection-file count across all
+50 campaigns and each slot driver's PID (--pidfiles, one per slot).
 
-Flags:
-  - no new injection-*.json file within --stall-minutes (default 20) while
-    fewer than 500 total exist
-  - any slot's pidfile process is dead while that slot still has incomplete
-    campaigns assigned to it (same flat-index-%3 assignment
-    run-all-campaigns.sh uses, recomputed here so this watchdog needs no
-    extra bookkeeping file)
-  - any injection-*.json with a non-null "error" field (chaoslib.run_fault_protocol
-    catches per-injection exceptions and records them without stopping the
-    campaign driver -- file-count progress alone would look "healthy" even
-    if every single injection were failing, since a caught exception still
-    produces a file). Alerts on any NEW error count since the previous poll,
-    not just presence, so this only fires once per newly-failed injection.
-  - cluster resource constraints: any of the 3 is-chaos-ml nodes reporting
-    NotReady or a True DiskPressure/MemoryPressure/PIDPressure condition, or
-    any pod in social-network/social-network-1/social-network-2 stuck
-    Pending for more than 3 minutes (the actual signature of the CPU-capacity
-    deadlock hit live 2026-08-16 setting this campaign up -- nodes stayed
-    "Ready" the whole time, only pod scheduling failed, so a node-Ready-only
-    check would have missed it)
-  - any campaign-summary.json reporting a violation_counts total of 0 across
-    an entire arm's 10 campaigns is NOT flagged here (that's an analysis
-    question, not an infra failure) -- this watchdog is infra-health only
+Alerts on:
+  - no new injection-*.json within --stall-minutes (default 20) while fewer
+    than 500 exist
+  - a slot's process is dead while that slot still has incomplete campaigns
+    (slot = flat campaign index % 3, the assignment run-all-campaigns.sh
+    uses, recomputed here)
+  - a new injection-*.json with a non-null "error" field. Per-injection
+    exceptions are recorded in the file and the campaign carries on, so the
+    file count alone would look healthy even if every injection failed.
+    Each errored injection alerts once.
+  - an is-chaos-ml node that is NotReady or reports DiskPressure,
+    MemoryPressure or PIDPressure, or a pod in social-network,
+    social-network-1 or social-network-2 Pending for more than 3 minutes.
+    A CPU-capacity shortfall shows up only as Pending pods while the nodes
+    stay Ready, so a node check alone would miss it.
 
-Writes one JSON object per line (JSONL) to --status-file on every poll, and
-touches "<status-file>.ALERT" (create-or-update mtime) on any alert
-condition, matching experiment-watchdog.py's convention. Never exits on its
-own.
+Campaign results (for example zero violations across an arm) are not
+checked. This watchdog covers infrastructure health only.
+
+Appends one JSON object per poll to --status-file (JSONL) and touches
+"<status-file>.ALERT" on any alert, as experiment-watchdog.py does. Exits
+once all 500 injections exist and every campaign is complete.
 
 Usage:
   python3 -u campaign-watchdog.py \
@@ -96,10 +89,9 @@ def pid_alive(pidfile: str) -> bool:
 
 def scan_injection_errors(data_dir: str) -> list[str]:
     """Every injection-*.json with a non-null "error" field, as
-    "arm/campaign-N/injection-i" identifiers. Full rescan each poll (500
-    files max, cheap at a 60s interval) rather than tracking deltas by
-    mtime, so a watchdog restart never misses an error that landed while it
-    was down."""
+    "arm/campaign-N/injection-i" identifiers. A full rescan each poll (at
+    most 500 files) instead of mtime tracking, so a watchdog restart never
+    misses an error that landed while it was down."""
     errored = []
     for path in glob.glob(os.path.join(data_dir, "*", "campaign-*", "injection-*.json")):
         try:
@@ -129,10 +121,9 @@ def _run_kubectl(args: list[str], context: str, timeout: int = 20) -> dict | lis
 def check_cluster_health(context: str, namespaces: list[str],
                           pending_grace_s: int = 180) -> dict:
     """Resource-constraint proxy: node conditions (NotReady, *Pressure) plus
-    pods stuck Pending past `pending_grace_s`. `None` fields mean the check
-    itself could not run (kubectl unreachable/timeout), NOT that the cluster
-    is healthy -- reported as its own flag so a kubectl outage doesn't read
-    as a silent all-clear."""
+    pods stuck Pending past `pending_grace_s`. If kubectl cannot list nodes,
+    returns checked=False with None fields, so the status record shows that
+    the check did not run rather than reporting a healthy cluster."""
     unhealthy_nodes = []
     nodes = _run_kubectl(["get", "nodes"], context)
     if nodes is None:

@@ -1,28 +1,22 @@
 #!/usr/bin/env python3
 """
-Component 5 evaluation harness (analysis/PREREGISTRATION.md, Component 5).
+Component 5 evaluation (analysis/PREREGISTRATION.md, Component 5).
 
-For each Component 1 run: extract features (component5_features.py), fit
-each of the 4 frozen detectors plus the static-threshold baseline ONLY on
-that run's own baseline phase (component5_detectors.py), score the whole
-run, and compute one AUC-ROC per (run, scorer) -- the unit of analysis
-throughout is PER RUN, giving a paired design across the 720 runs for the
-confirmatory comparison.
+For each Component 1 run: build features (component5_features.py), fit the
+4 detectors and the static-threshold baseline on that run's baseline phase
+only (component5_detectors.py), score the whole run, and compute one
+AUC-ROC per (run, scorer). The run is the unit of analysis, so scorers are
+paired by run.
 
-Primary metric: AUC-ROC per detector, median/IQR + 95% percentile
-bootstrap CI across runs (10,000 resamples, seed 42 -- explicitly
-registered here; PREREGISTRATION.md's Component 5 text does not specify a
-method/resample count, same gap category already found and fixed for
-Component 4, disclosed rather than silently assumed).
+Primary metric: median AUC-ROC per scorer with IQR and a 95% percentile
+bootstrap CI of the median across runs (10,000 resamples, seed 42,
+Component 5 amendment item 4).
 
 Confirmatory: each detector vs static_threshold, two-sided Wilcoxon
-signed-rank on the per-run AUC differences (paired: both scorers see the
-identical run, so this is a legitimate paired test), Holm-Bonferroni
-correction across the 4 detectors. Runs where a scorer's score is constant
-(numpy std < 1e-12, e.g. the static-threshold baseline finding zero
-resource-usage violations on a pod-failure fault -- see
-component5_detectors.py) are EXCLUDED from that scorer's AUC list, flagged
-in the output, and never silently treated as a genuine AUC=0.5.
+signed-rank on per-run AUCs, Holm-Bonferroni across the 4 detectors. A run
+where a scorer's score is constant (std < 1e-12) is excluded from that
+scorer's AUCs and counted as degenerate, not scored as AUC 0.5. The paired
+test therefore uses only runs where both scorers are non-degenerate.
 
 Usage:
     python3 scripts/component5_evaluate.py [--limit N] [--out analysis/results/component5-scoring.json]
@@ -48,11 +42,10 @@ BOOTSTRAP_SEED = 42
 
 
 def safe_auc(label: np.ndarray, scores: np.ndarray) -> tuple[float | None, bool]:
-    """Returns (auc, degenerate). degenerate=True means the scorer produced
-    a constant score for this run -- sklearn's roc_auc_score would silently
-    return exactly 0.5 for this case, indistinguishable in the number alone
-    from genuine chance-level discrimination (the same failure mode found
-    and fixed in Component 4's scoring)."""
+    """Return (auc, degenerate). degenerate=True when the scores are constant
+    or the label has a single class, and auc is then None. For constant
+    scores sklearn's roc_auc_score returns exactly 0.5, which would read as
+    chance-level discrimination."""
     from sklearn.metrics import roc_auc_score
     if np.std(scores) < 1e-12:
         return None, True
@@ -72,7 +65,7 @@ def evaluate_run(run_json: Path, ts_path: Path) -> dict | None:
         try:
             scores = fn(X, mask, names)
             auc, degenerate = safe_auc(label, scores)
-        except Exception as e:  # noqa: BLE001 -- one run's numerical failure must not kill the batch
+        except Exception as e:  # noqa: BLE001 (one run's numerical failure must not stop the batch)
             auc, degenerate = None, True
             result.setdefault("errors", {})[name] = str(e)
         result["auc"][name] = auc
@@ -154,8 +147,8 @@ def main():
               f"median_AUC={med} 95% CI=[{ci_lo}, {ci_hi}]")
 
     # Confirmatory: each detector vs static_threshold, paired Wilcoxon
-    # signed-rank on runs where BOTH scorers produced a genuine (non-
-    # degenerate) AUC, Holm-Bonferroni across the 4 detectors.
+    # signed-rank on runs where both scorers have a non-degenerate AUC,
+    # Holm-Bonferroni across the 4 detectors.
     confirmatory = {}
     p_values = []
     detector_names = list(DETECTORS.keys())
@@ -175,13 +168,9 @@ def main():
             stat, p = wilcoxon(det_aucs, base_aucs, alternative="two-sided")
         confirmatory[name] = {
             "n_paired": len(paired),
-            # Paired-subset descriptive medians, added 2026-08-18 after a
-            # peer-review pass flagged that reporting the full-719-run
-            # detector median alongside the baseline's 299-run median in
-            # the same table cell mixes two different samples. These are
-            # each detector's own median AUC computed on exactly the same
-            # 299 runs the paired test uses, directly comparable to the
-            # baseline's paired-subset median.
+            # Both medians over the paired runs only, so the detector's
+            # median is comparable with the baseline's. The detector's
+            # full-sample median in `summary` covers more runs.
             "median_auc_paired_subset": float(np.median(det_aucs)),
             "baseline_median_auc_paired_subset": float(np.median(base_aucs)),
             "median_diff": float(np.median(diffs)),

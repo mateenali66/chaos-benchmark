@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 ################################################################################
-# Build and push wrk2 Docker image to ECR
+# Build the wrk2 load-generator image and push it to ECR as
+# <account>.dkr.ecr.<region>.amazonaws.com/chaos-benchmark/wrk2:latest.
+# Export that repository path as CHAOS_ECR_REPO for the experiment runners.
+# Env: AWS_PROFILE (default "default"), AWS_REGION (default ca-central-1).
+# Requires aws, docker and git.
 # Usage: ./scripts/build-wrk2-image.sh
 ################################################################################
 set -euo pipefail
@@ -37,8 +41,9 @@ aws ecr get-login-password --region "${AWS_REGION}" | \
     docker login --username AWS --password-stdin \
     "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-# Build context: load-generator/ dir with wrk2 source copied in
-# We use a temporary build context to avoid sending the entire DSB submodule
+# Build from a temporary context that holds only the Dockerfile, the Lua
+# workload script and the wrk2 source, so the whole DeathStarBench submodule
+# is not sent to Docker.
 BUILD_DIR=$(mktemp -d)
 trap "rm -rf ${BUILD_DIR}" EXIT
 

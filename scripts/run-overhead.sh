@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 ################################################################################
-# Overhead-Isolation Batch Runner
+# Component 2 batch runner (run-experiment.py --mode overhead). Runs three
+# configurations, 10 reps each by default, in this order:
 #
-# Drives run-experiment.py --mode overhead through its three configurations,
-# 10 reps each, IN THIS ORDER, because config (a) is only valid measurement
-# if the chaos tool is not installed on the cluster at all:
+#   (a) baseline      no chaos tool installed, no fault, 300 s load window
+#   (b) idle          <tool> installed with its agents running, no fault
+#   (c) fault         <tool> installed, the 4-phase benchmark protocol for
+#                      one scenario (default p1)
 #
-#   (a) baseline      no chaos tool installed, no fault, 300s load window
-#   (b) idle          <tool> installed and running (agents up), no fault
-#   (c) fault         <tool> installed, existing 4-phase benchmark protocol
-#                      for one representative scenario (default p1)
+# Stage (a) is only valid with no chaos tool on the cluster, so it refuses to
+# run while a chaos-mesh, chaos-testing or litmus namespace exists. With
+# --stage all the script pauses after (a), so the tool can be installed by
+# hand (helm install or ./scripts/setup.sh) before (b).
 #
-# This script enforces that ordering: before running stage (a) it checks
-# that neither the chaos-mesh nor litmus namespace exists (refuses to run
-# otherwise, since a leftover install from a prior study would silently
-# contaminate the "no tool installed" baseline), and it stops with an
-# interactive prompt between (a) and (b) so you can install the tool by
-# hand (`helm install ...` / `./scripts/setup.sh`, whichever your cluster
-# uses -- deliberately not automated here, since installing the tool is
-# owned by setup.sh in another workstream) before continuing.
+# Each rep is preceded by reset-app-state.sh unless CHAOS_RESET_STATE=0.
+# Output: $CHAOS_DATA_DIR/overhead/{baseline,<tool>-idle,<tool>-fault}/run-N.json.
+# Existing outputs are skipped, so a stage can be re-run after an interruption.
+#
+# Env: CHAOS_DATA_DIR (required), CHAOS_RESET_STATE (default 1),
+# CHAOS_ASSUME_YES=1 to confirm the prompts automatically.
 #
 # Usage:
 #   ./scripts/run-overhead.sh --tool chaos-mesh|litmus [--reps N] [--scenario ID] [--stage baseline|idle|fault|all]
@@ -26,12 +26,8 @@
 # Examples:
 #   ./scripts/run-overhead.sh --tool chaos-mesh                     # all 3 stages, 10 reps each
 #   ./scripts/run-overhead.sh --tool chaos-mesh --stage baseline    # just stage (a)
-#   ./scripts/run-overhead.sh --tool litmus --stage idle --reps 10  # just stage (b), resumable
+#   ./scripts/run-overhead.sh --tool litmus --stage idle --reps 10  # just stage (b)
 #   ./scripts/run-overhead.sh --tool litmus --stage fault --scenario p1
-#
-# Resume: same as run-all-experiments.sh -- each stage skips any
-# data/overhead/{config}/run-N.json that already exists, so re-running this
-# script (or re-running a single --stage) after an interruption is safe.
 ################################################################################
 set -euo pipefail
 
@@ -112,9 +108,8 @@ log() {
 
 confirm() {
     local prompt="$1"
-    # CHAOS_ASSUME_YES=1 for unattended runs (watchdog-supervised campaigns):
-    # the safety ordering is still enforced by check_no_tool_installed; the
-    # prompt exists for interactive use, and read(1) cannot work without a tty.
+    # CHAOS_ASSUME_YES=1 skips the prompt for unattended runs, where read has
+    # no tty. check_no_tool_installed still guards stage (a).
     if [[ "${CHAOS_ASSUME_YES:-0}" == "1" ]]; then
         echo "${prompt} [auto-confirmed: CHAOS_ASSUME_YES=1]"
         return 0
@@ -160,7 +155,7 @@ run_stage() {
             continue
         fi
 
-        # Per-rep state reset (see run-all-experiments.sh); CHAOS_RESET_STATE=0 disables.
+        # Per-rep state reset. CHAOS_RESET_STATE=0 disables it.
         if [[ "${CHAOS_RESET_STATE:-1}" == "1" ]]; then
             log "[${overhead_config} ${run}/${REPS}] resetting app state..."
             if ! "${SCRIPT_DIR}/reset-app-state.sh" >> "${PROGRESS_LOG}" 2>&1; then
@@ -192,8 +187,8 @@ run_stage() {
 
 check_no_tool_installed() {
     local found=()
-    # chaos-testing is Chaos Mesh's actual install namespace; "chaos-mesh"
-    # kept for safety with nonstandard installs.
+    # chaos-testing is the Chaos Mesh namespace used by setup.sh. chaos-mesh
+    # covers other installs.
     for ns in chaos-mesh chaos-testing litmus; do
         if kubectl get namespace "${ns}" >/dev/null 2>&1; then
             found+=("${ns}")

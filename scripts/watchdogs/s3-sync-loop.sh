@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 ################################################################################
-# Continuous S3 backup loop (February-campaign lesson: local-only results are
-# one laptop failure away from a lost campaign).
+# Continuous backup of one cluster's data directory to the artifacts bucket.
 #
-# Syncs a cluster's data root to the versioned artifacts bucket every
-# INTERVAL seconds. Sync failures write an .ALERT sentinel (same convention as
-# the other watchdogs) but the loop keeps running: transient auth/network
-# errors must not kill the backup.
+# Every interval_s seconds (default 600) syncs CHAOS_DATA_DIR (default
+# data-v2/<env>) to s3://<bucket>/<env>/data-v2/. The bucket is
+# CHAOS_S3_BUCKET, or is-chaos-artifacts-<account_id> if unset. Each pass
+# appends a status line to <data dir>/watchdogs/s3-sync-status.jsonl. A failed
+# sync also writes an .ALERT sentinel next to it, like the other watchdogs,
+# and the loop keeps running so a transient auth or network error does not
+# stop the backup.
 #
+# Env: AWS_PROFILE (default "default").
 # Usage: ./scripts/watchdogs/s3-sync-loop.sh <bench-a|bench-b|ml> [interval_s]
 ################################################################################
 set -uo pipefail

@@ -4,16 +4,14 @@ Component 5 anomaly detectors (analysis/PREREGISTRATION.md, Component 5).
 
 Each detector function has the signature
     detector(X: np.ndarray (T, F), baseline_mask: np.ndarray (T,) bool) -> np.ndarray (T,)
-and is trained ONLY on X[baseline_mask] (that run's own true baseline
-phase, per component5_features.py's docstring on why the sidecar's wider
-pre-buffer is excluded), then scores ALL T timesteps of that same run. No
-cross-run learning anywhere -- every run gets its own freshly fit detector,
-so there is no leakage channel from one run's fault into another run's
-(or its own) training data. Higher returned score = more anomalous.
+It is fit only on X[baseline_mask], the run's own baseline phase, and then
+scores all T timesteps of that run. Every run gets a freshly fit detector
+and nothing is learned across runs, so no fault data reaches training.
+Higher score = more anomalous.
 
-Frozen list (PREREGISTRATION.md, Component 5): EWMA control chart,
-Isolation Forest, reconstruction autoencoder, Deep SVDD, plus the
-static-threshold baseline comparator.
+Detectors (frozen list, PREREGISTRATION.md Component 5): EWMA control
+chart, Isolation Forest, reconstruction autoencoder, Deep SVDD.
+static_threshold_baseline() is the comparator.
 """
 from __future__ import annotations
 
@@ -37,12 +35,11 @@ def _fit_scaler(X: np.ndarray, baseline_mask: np.ndarray) -> StandardScaler:
 
 
 def ewma_control_chart(X: np.ndarray, baseline_mask: np.ndarray, alpha: float = 0.3) -> np.ndarray:
-    """Per-feature EWMA mean/variance fit on the baseline segment (standard
-    control-chart initialization: mu0/var0 = baseline mean/var), then run
-    forward through the WHOLE series updating the EWMA statistics online
-    (so a sustained shift is tracked, matching how an online control chart
-    would actually operate at deployment) and score each timestep by the
-    max absolute per-feature z-score against the running EWMA mean/std."""
+    """EWMA control chart. Per-feature mean and variance start at the
+    baseline mean and variance, then update online through the whole series,
+    as a deployed chart would, so a sustained shift is tracked. Each
+    timestep's score is the maximum absolute per-feature z-score against the
+    running EWMA mean and standard deviation."""
     scaler = _fit_scaler(X, baseline_mask)
     Xs = scaler.transform(X)
     baseline = Xs[baseline_mask]
@@ -95,13 +92,12 @@ class _TinyAutoencoder(nn.Module):
 
 def reconstruction_autoencoder(X: np.ndarray, baseline_mask: np.ndarray,
                                 epochs: int = 200, lr: float = 1e-2) -> np.ndarray:
-    """A small feedforward AE trained only on the baseline segment (a few
-    dozen points per run); score = per-timestep reconstruction MSE on the
-    whole run. Deliberately tiny (bottleneck ~ n_features/4) and trained
-    with full-batch gradient descent for a fixed number of epochs -- no
-    validation split, since the ~60-point per-run baseline is too small to
-    hold any out cleanly, consistent with the "no cross-run learning"
-    per-run design (there is nowhere else to get more baseline data from)."""
+    """Small feedforward autoencoder (bottleneck ~ n_features/4) fit on the
+    baseline segment, about 60 points per run. Score = per-timestep
+    reconstruction MSE over the whole run. Trained full-batch with Adam for
+    a fixed number of epochs. There is no validation split: the per-run
+    baseline is too small to hold points out, and no other run's data may
+    be used."""
     torch.manual_seed(TORCH_SEED)
     scaler = _fit_scaler(X, baseline_mask)
     Xs = scaler.transform(X).astype(np.float32)
@@ -143,12 +139,11 @@ class _SVDDEncoder(nn.Module):
 
 def deep_svdd(X: np.ndarray, baseline_mask: np.ndarray,
               epochs: int = 200, lr: float = 1e-2) -> np.ndarray:
-    """Soft-boundary-free (Ruff et al. 2018 "One-Class Deep SVDD",
-    one-class objective): an encoder maps baseline points as close as
-    possible to a fixed center c (c = mean of an untrained forward pass
-    over the baseline, frozen before training per the original paper, to
-    avoid the trivial all-zero-weights collapse); score = squared distance
-    from c on the whole run."""
+    """One-class Deep SVDD (Ruff et al. 2018), without the soft boundary. An
+    encoder maps baseline points as close as possible to a fixed center c,
+    the mean of an untrained forward pass over the baseline. As in the
+    original paper, c is fixed before training to avoid a collapsed
+    solution. Score = squared distance from c over the whole run."""
     torch.manual_seed(TORCH_SEED)
     scaler = _fit_scaler(X, baseline_mask)
     Xs = scaler.transform(X).astype(np.float32)
@@ -181,23 +176,21 @@ def deep_svdd(X: np.ndarray, baseline_mask: np.ndarray,
 
 def static_threshold_baseline(X: np.ndarray, baseline_mask: np.ndarray,
                                feature_names: list[str]) -> np.ndarray:
-    """Adapted static-SLO comparator (see component5_features.py's module
-    docstring: the original Component 3 rule set needs error_rate/p99 from
-    per-timestep HTTP telemetry that does not exist in this data). This
-    rule instead uses the two legs of Component 3's weakness-signal formula
-    that DO have a genuine per-timestep infrastructure-level analogue:
-      - pod_restarts_violation: any increase in cumulative pod_restarts_total
-        since the run's own baseline-mean level.
-      - resource_spike_violation: any feature (CPU/memory/network) at that
-        timestep exceeds 3x its own baseline-mean (mirroring Component 3's
-        "p99 > 3x baseline" ratio structure, applied to resource usage
-        rather than latency since latency isn't observable per-timestep
-        here).
-    Score = count of violated legs (0, 1, or 2) at that timestep -- a
-    genuinely NEW rule for this analysis (not previously specified beyond
-    the phrase "the static SLO threshold rules defined in Component 3's
-    weakness signals" in PREREGISTRATION.md), disclosed as such rather than
-    presented as identical to the original."""
+    """Static-threshold comparator, adapted from Component 3's weakness
+    signals (PREREGISTRATION.md, Component 5 amendment item 2).
+
+    Component 3's rule needs per-timestep HTTP error rate and p99, which this
+    data does not have (see component5_features.py). The adaptation keeps
+    the two legs that have a per-timestep infrastructure analogue:
+      - pod restarts: pod_restarts_total above the run's own baseline mean.
+      - resource spike: any other feature (CPU, memory, network) above 3x
+        its own baseline mean, the "p99 > 3x baseline" structure applied to
+        resource usage.
+    Score = number of legs violated at that timestep (0, 1 or 2).
+
+    This is a new rule, not Component 3's formula. Its score is constant on
+    420 of 719 runs, and component5_evaluate.py excludes those runs from the
+    confirmatory test."""
     baseline_mean = X[baseline_mask].mean(axis=0)
     baseline_mean_safe = np.where(np.abs(baseline_mean) < 1e-9, 1e-9, baseline_mean)
 

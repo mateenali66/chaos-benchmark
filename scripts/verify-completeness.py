@@ -1,9 +1,9 @@
 #!/usr/bin/env -S python3 -u
-"""Completeness verifier for the revision campaign.
+"""Completeness check for experiment results.
 
-Checks the ACTUAL result files on disk against the EXPECTED experiment matrix
-so that a missing or corrupt run is caught at stage end, not at analysis time
-(February-campaign lesson: silently missed tests surface months later).
+Checks the result files on disk against the expected experiment matrix, so
+a missing or corrupt run is caught when a stage ends rather than at
+analysis time.
 
 Checks per expected run:
   1. result JSON exists, parses, and has the required top-level keys
@@ -61,13 +61,10 @@ def main() -> int:
     ap.add_argument("--tool", choices=["chaos-mesh", "litmus"])
     ap.add_argument("--start-rep", type=int, default=1,
                     help="benchmark mode: first rep to expect (matches "
-                         "run-all-experiments.sh's --start-rep). Needed "
-                         "because the crossover design means a cluster's "
-                         "two tools each own a DIFFERENT rep range (phase-1 "
-                         "tool owns 1..15, phase-2 tool owns 16..30) -- "
-                         "checking one tool across the full 1..30 range "
-                         "will always report the other tool's half as "
-                         "missing.")
+                         "run-all-experiments.sh --start-rep). Under the "
+                         "crossover design each tool owns half of a "
+                         "cluster's reps (1..15 or 16..30), so checking one "
+                         "tool over 1..30 reports the other half as missing.")
     ap.add_argument("--reps", type=int, default=30)
     ap.add_argument("--overhead-reps", type=int, default=10)
     ap.add_argument("--stages", default="baseline,idle,fault",

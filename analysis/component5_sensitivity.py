@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Component 5 post hoc analyses reported in the manuscript (Section 5.6).
+"""Component 5 post hoc analyses reported in the manuscript.
 
 Reads analysis/results/component5-scoring.json (written by
 scripts/component5_evaluate.py) and computes two things that are not part of

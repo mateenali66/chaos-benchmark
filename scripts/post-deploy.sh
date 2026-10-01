@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 ################################################################################
-# Post-Deploy Setup
-# Orchestrates: Litmus RBAC, ChaosExperiment CRDs, social graph initialization
-# Run this AFTER setup.sh + deploy-dsb.sh have completed successfully.
-# Usage: ./scripts/post-deploy.sh
+# Post-deploy setup. Run after setup.sh and deploy-dsb.sh. Steps:
+#   1. Litmus RBAC (litmus-admin service account)
+#   2. Litmus chaos operator and CRDs, if missing
+#   3. ChaosExperiment definitions from ChaosHub
+#   4. check the number of installed ChaosExperiments
+#   5. social graph initialization (init-social-graph.sh)
+#   6. check that a timeline read returns data
 #
-# Slot parallelism: CHAOS_SLOT env var (default "0") targets the matching
-# slot's namespace (must have already been deployed via
-# `CHAOS_SLOT=<slot> ./scripts/deploy-dsb.sh`). Unset/"0" is the original
-# behavior, byte-for-byte. See scripts/SLOT_PARALLELISM.md.
+# Env: CHAOS_SLOT (default 0) targets that slot's namespace, which must already
+# be deployed with deploy-dsb.sh (see scripts/SLOT_PARALLELISM.md).
+# INSTALL_LITMUS=0 skips steps 2 and 3.
+# Usage: ./scripts/post-deploy.sh
 ################################################################################
 set -euo pipefail
 
@@ -16,21 +19,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 export AWS_PROFILE="${AWS_PROFILE:-default}"
-# Exported so the init-social-graph.sh call below sees the same slot
-# regardless of whether the caller exported it.
+# Exported so init-social-graph.sh uses the same slot.
 export CHAOS_SLOT="${CHAOS_SLOT:-0}"
 
-# Namespace convention for slot parallelism (slot 0/unset = default
-# namespace; slot N = "social-network-N"). Kept in sync with
-# chaoslib.namespace_for_slot() -- if you change this logic, change it
-# there too.
+# Namespace for this slot. Keep in sync with chaoslib.namespace_for_slot().
 if [[ -z "${CHAOS_SLOT}" || "${CHAOS_SLOT}" == "0" ]]; then
     NAMESPACE="social-network"
 else
     NAMESPACE="social-network-${CHAOS_SLOT}"
 fi
 
-# ChaosExperiment types referenced by our 12 Litmus experiment YAMLs
+# ChaosExperiment types used by the 12 manifests in experiments/litmus/
 CHAOS_EXPERIMENTS=(
     "pod-delete"
     "container-kill"
@@ -57,11 +56,11 @@ echo "--- [1/6] Applying Litmus RBAC (litmus-admin SA in ${NAMESPACE})..."
 if [[ -z "${CHAOS_SLOT}" || "${CHAOS_SLOT}" == "0" ]]; then
     kubectl apply -f "${PROJECT_ROOT}/manifests/litmus-rbac.yaml"
 else
-    # Slot namespaces get their own SA + a uniquely-named ClusterRoleBinding
-    # to the shared litmus-admin ClusterRole (declared once by the slot-0
-    # apply above, assumed already applied). See litmus-rbac-slot.yaml.tpl.
-    # See deploy-dsb.sh for why mktemp -d + fixed filename is used instead of
-    # the template-XXXXXX.suffix form here.
+    # Slot namespaces get their own service account and a uniquely named
+    # ClusterRoleBinding to the shared litmus-admin ClusterRole, which the
+    # slot 0 run creates, so run slot 0 first. See
+    # manifests/litmus-rbac-slot.yaml.tpl. deploy-dsb.sh explains the
+    # mktemp -d with a fixed filename.
     SLOT_RBAC_TMPDIR="$(mktemp -d)"
     SLOT_RBAC_FILE="${SLOT_RBAC_TMPDIR}/litmus-rbac-slot.yaml"
     trap 'rm -rf "${SLOT_RBAC_TMPDIR}"' EXIT
@@ -75,9 +74,9 @@ echo "    SA: $(kubectl get sa litmus-admin -n "${NAMESPACE}" -o name 2>/dev/nul
 # Step 2: Install Chaos Operator CRDs + Operator (if not present)
 ################################################################################
 echo ""
-# INSTALL_LITMUS=0 skips the operator/CRD/ChaosHub blocks so a cluster can be
-# post-deployed with NO chaos tool (overhead stage (a) requirement). Default 1
-# preserves the original behavior.
+# INSTALL_LITMUS=0 skips the operator, CRD and ChaosExperiment steps, so a
+# cluster can be prepared with no chaos tool for the run-overhead.sh baseline
+# stage.
 INSTALL_LITMUS="${INSTALL_LITMUS:-1}"
 if [ "$INSTALL_LITMUS" != "1" ]; then
   echo "--- [2/6] SKIPPING Litmus operator/CRDs (INSTALL_LITMUS=$INSTALL_LITMUS)"
@@ -152,10 +151,8 @@ chmod +x "${SCRIPT_DIR}/init-social-graph.sh"
 echo ""
 echo "--- [6/6] Verifying social graph..."
 
-# Start a quick port-forward to test. Slot-specific offset (same 97-per-slot
-# step as chaoslib.SLOT_PORT_STEP / reset-app-state.sh / init-social-graph.sh)
-# so concurrent slots' post-deploy runs on one cluster don't collide here.
-# Slot 0/unset adds 0 (unchanged behavior, port stays 18080).
+# Port 18080 plus 97 per slot (chaoslib.SLOT_PORT_STEP), so post-deploy runs
+# for different slots of one cluster do not collide.
 VERIFY_PORT=18080
 if [[ -n "${CHAOS_SLOT}" && "${CHAOS_SLOT}" != "0" ]]; then
     VERIFY_PORT=$(( 18080 + CHAOS_SLOT * 97 ))

@@ -1,8 +1,6 @@
-# Frozen LLM configuration for Components 3 (fault selection) and 4 (hypothesis
-# generation). Frozen BEFORE any campaign or generation run per the
-# pre-registration (analysis/PREREGISTRATION.md); do not edit after data
-# collection begins. Verified invokable in ca-central-1 on 2026-08-15
-# (AWS account, one-token converse test per model).
+# Amazon Bedrock configuration for Components 3 (fault selection) and 4
+# (hypothesis generation), used for every campaign and generation run.
+# Do not edit: changing it breaks comparability with the collected data.
 
 region: ca-central-1
 
@@ -20,15 +18,14 @@ models:
 component3_selection:
   temperature: 0.2
   max_tokens: 1024
-  # Bedrock does not expose a sampling seed across all providers; determinism
-  # is addressed by logging the full request/response transcript per decision
-  # (data/campaigns/{arm}/campaign-N/llm-transcript.jsonl) and pinning model
-  # IDs above. Prompt template: prompts/selection.txt (frozen with this file).
+  # Bedrock has no sampling seed for all three providers, so every request
+  # and response is logged to campaigns/{arm}/campaign-N/llm-transcript.jsonl.
+  # Prompt template: scripts/prompts/selection.txt.
 
 component4_hypothesis:
   temperature: 0.7
   max_tokens: 2048
   samples_per_candidate: 5
-  # Prompt template: prompts/hypothesis.txt (frozen with this file). Output
-  # must validate against the JSON schema in prompts/hypothesis-schema.json;
-  # schema-invalid generations are retried up to 3x and retries are logged.
+  # Prompt template: scripts/prompts/hypothesis.txt. Output must validate
+  # against scripts/prompts/hypothesis-schema.json. An invalid generation is
+  # re-prompted, up to 3 attempts per sample, and every attempt is logged.
