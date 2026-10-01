@@ -40,7 +40,6 @@ tags = {
 }
 
 # REQUIRED before `terraform plan`: fill in with the IAM ARN(s) that should
-# get EKS cluster-admin access (e.g. your default role/user ARN).
+# get EKS cluster-admin access (e.g. your IAM role or user ARN).
 cluster_admin_arns = []  # creator user/mateen gets AmazonEKSClusterAdminPolicy automatically via the bootstrap access entry; list ADDITIONAL admins only
 
-aws_profile = "default"

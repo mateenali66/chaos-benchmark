@@ -28,7 +28,7 @@ case "$ENV_NAME" in
     ;;
 esac
 
-AWS_PROFILE="${AWS_PROFILE:-personal}"
+AWS_PROFILE="${AWS_PROFILE:-default}"
 REGION="${AWS_REGION:-ca-central-1}"
 KUBE_CONTEXT="is-chaos-${ENV_NAME}"
 

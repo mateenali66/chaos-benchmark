@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-export AWS_PROFILE=personal
+export AWS_PROFILE="${AWS_PROFILE:-default}"
 NAMESPACE="social-network"
 
 PASS=0

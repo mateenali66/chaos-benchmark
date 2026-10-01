@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Source this before any experiment command of the JSS revision campaign:
 #   source scripts/campaign-env.sh
-# AWS account, ca-central-1, clusters is-chaos-{bench-a,bench-b,ml}.
+# ca-central-1, clusters is-chaos-{bench-a,bench-b,ml}.
 
 export AWS_PROFILE="${AWS_PROFILE:-default}"
 export AWS_REGION="ca-central-1"

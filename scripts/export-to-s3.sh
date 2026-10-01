@@ -31,7 +31,7 @@ case "$ENV_NAME" in
     ;;
 esac
 
-AWS_PROFILE="${AWS_PROFILE:-personal}"
+AWS_PROFILE="${AWS_PROFILE:-default}"
 AWS_REGION="${AWS_REGION:-ca-central-1}"
 
 echo "--- Selecting Terraform workspace '${ENV_NAME}' ---"

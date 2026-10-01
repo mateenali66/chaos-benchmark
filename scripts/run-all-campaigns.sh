@@ -37,7 +37,7 @@ export AWS_PROFILE="${AWS_PROFILE:-default}"
 export CHAOS_SLOT="${CHAOS_SLOT:-0}"
 export CHAOS_DATA_DIR="${CHAOS_DATA_DIR:-${PROJECT_ROOT}/data-v2/ml}"
 # chaoslib.ECR_REPO defaults to a stale cross-account image reference --
-# 403 Forbidden under default's node IAM role (found live 2026-08-16
+# 403 Forbidden under the node IAM role (found live 2026-08-16
 # debugging the smoke-test campaign's zero-throughput wrk2 runs). The real
 # same-account image already exists (pushed by build-wrk2-image.sh); must
 # be selected explicitly, matching chaoslib.py's own documented override
