@@ -45,6 +45,14 @@ Ground-truth throughput_direction rule (item 6c): degrade if
 
 Usage:
   python3 scripts/score-hypotheses.py [--out analysis/results/component4-scoring.json]
+
+Sensitivity analysis (optional, off by default): --min-support N restricts
+scoring to candidates whose ground truth rests on at least N Component 3
+injections. Every arm, the majority-class baseline and the bootstrap are
+recomputed on the restricted candidate set with the same metric, the same
+resampling unit and the same seed. Without the flag the output is unchanged.
+  python3 scripts/score-hypotheses.py --min-support 5 \\
+      --out analysis/results/component4-scoring-min5.json
 """
 from __future__ import annotations
 
@@ -266,6 +274,9 @@ def bootstrap_ci(pairs: list[tuple[str, str]], n_resamples: int = BOOTSTRAP_RESA
 def main():
     parser = argparse.ArgumentParser(description="Component 4 mechanical scoring")
     parser.add_argument("--out", default=str(PROJECT_ROOT / "analysis" / "results" / "component4-scoring.json"))
+    parser.add_argument("--min-support", type=int, default=None,
+                        help="Sensitivity analysis: score only candidates with at least this many "
+                             "Component 3 injections behind their ground truth (default: no restriction)")
     args = parser.parse_args()
 
     fault_space = load_fault_space()
@@ -282,6 +293,17 @@ def main():
 
     print(f"Ground truth available for {len(ground_truth)}/{len(fault_space)} candidates "
           f"({len(excluded)} excluded, zero real executions: {excluded})")
+
+    # Optional sensitivity restriction. Dropped candidates are recorded
+    # separately from `excluded` (which means zero real executions).
+    below_min_support: dict[str, int] = {}
+    if args.min_support is not None:
+        below_min_support = {cid: gt["n_component3_injections"] for cid, gt in ground_truth.items()
+                             if gt["n_component3_injections"] < args.min_support}
+        ground_truth = {cid: gt for cid, gt in ground_truth.items() if cid not in below_min_support}
+        print(f"Sensitivity restriction --min-support {args.min_support}: dropped "
+              f"{len(below_min_support)} candidates {below_min_support}; "
+              f"{len(ground_truth)} candidates scored")
 
     samples = load_hypotheses()
     print(f"Loaded {len(samples)} valid hypothesis-generation samples")
@@ -338,6 +360,11 @@ def main():
         "results": results,
         "ground_truth": ground_truth,
     }
+    if args.min_support is not None:
+        output["sensitivity_min_support"] = args.min_support
+        output["candidates_below_min_support"] = below_min_support
+        output["ground_truth_class_counts"] = dict(gt_counts)
+        output["majority_class"] = majority_class
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:

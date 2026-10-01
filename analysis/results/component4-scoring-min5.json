@@ -1,0 +1,242 @@
+{
+  "candidates_with_ground_truth": 26,
+  "candidates_excluded": [],
+  "total_candidates": 36,
+  "results": {
+    "llm-claude": {
+      "n_scored": 130,
+      "balanced_accuracy": 0.49444444444444446,
+      "ci_95_lo": 0.41672965482489294,
+      "ci_95_hi": 0.5677655677655677,
+      "predicted_label_counts": {
+        "degrade": 105,
+        "no_meaningful_change": 25
+      },
+      "degenerate_constant_predictor": false
+    },
+    "llm-llama": {
+      "n_scored": 130,
+      "balanced_accuracy": 0.5,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.5,
+      "predicted_label_counts": {
+        "degrade": 130
+      },
+      "degenerate_constant_predictor": true
+    },
+    "llm-mistral": {
+      "n_scored": 130,
+      "balanced_accuracy": 0.5277777777777778,
+      "ci_95_lo": 0.5056818181818182,
+      "ci_95_hi": 0.5542168674698795,
+      "predicted_label_counts": {
+        "degrade": 125,
+        "no_meaningful_change": 5
+      },
+      "degenerate_constant_predictor": false
+    },
+    "practitioner_heuristic": {
+      "n_scored": 26,
+      "balanced_accuracy": 0.5833333333333334,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.6785714285714286,
+      "predicted_label_counts": {
+        "degrade": 23,
+        "no_meaningful_change": 3
+      },
+      "degenerate_constant_predictor": false
+    },
+    "always_predict_majority_class": {
+      "n_scored": 26,
+      "balanced_accuracy": 0.5,
+      "ci_95_lo": 0.5,
+      "ci_95_hi": 0.5,
+      "predicted_label_counts": {
+        "no_meaningful_change": 26
+      },
+      "degenerate_constant_predictor": true
+    },
+    "chance": {
+      "n_scored": null,
+      "balanced_accuracy": 0.5,
+      "ci_95_lo": null,
+      "ci_95_hi": null
+    }
+  },
+  "ground_truth": {
+    "C01": {
+      "n_component3_injections": 38,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C02": {
+      "n_component3_injections": 26,
+      "median_throughput_rps": 119.67500000000001,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C03": {
+      "n_component3_injections": 22,
+      "median_throughput_rps": 119.61,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C04": {
+      "n_component3_injections": 23,
+      "median_throughput_rps": 102.12,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C05": {
+      "n_component3_injections": 13,
+      "median_throughput_rps": 100.36,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C06": {
+      "n_component3_injections": 7,
+      "median_throughput_rps": 89.76,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C07": {
+      "n_component3_injections": 13,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C10": {
+      "n_component3_injections": 30,
+      "median_throughput_rps": 119.63,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C11": {
+      "n_component3_injections": 29,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C12": {
+      "n_component3_injections": 14,
+      "median_throughput_rps": 119.67500000000001,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C13": {
+      "n_component3_injections": 15,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C16": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C22": {
+      "n_component3_injections": 25,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C23": {
+      "n_component3_injections": 18,
+      "median_throughput_rps": 25.125,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C24": {
+      "n_component3_injections": 7,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C25": {
+      "n_component3_injections": 28,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C26": {
+      "n_component3_injections": 21,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C27": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 24.65,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C28": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.68,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C29": {
+      "n_component3_injections": 5,
+      "median_throughput_rps": 119.57,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C31": {
+      "n_component3_injections": 27,
+      "median_throughput_rps": 119.67,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C32": {
+      "n_component3_injections": 17,
+      "median_throughput_rps": 119.58,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C33": {
+      "n_component3_injections": 24,
+      "median_throughput_rps": 119.63,
+      "throughput_direction": "no_meaningful_change",
+      "weakness_signal_present": true
+    },
+    "C34": {
+      "n_component3_injections": 23,
+      "median_throughput_rps": 63.45,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C35": {
+      "n_component3_injections": 15,
+      "median_throughput_rps": 20.99,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    },
+    "C36": {
+      "n_component3_injections": 14,
+      "median_throughput_rps": 21.815,
+      "throughput_direction": "degrade",
+      "weakness_signal_present": true
+    }
+  },
+  "sensitivity_min_support": 5,
+  "candidates_below_min_support": {
+    "C08": 3,
+    "C09": 3,
+    "C14": 4,
+    "C15": 4,
+    "C17": 1,
+    "C18": 4,
+    "C19": 2,
+    "C20": 3,
+    "C21": 3,
+    "C30": 4
+  },
+  "ground_truth_class_counts": {
+    "no_meaningful_change": 18,
+    "degrade": 8
+  },
+  "majority_class": "no_meaningful_change"
+}
