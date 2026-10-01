@@ -1,19 +1,21 @@
-\begin{table*}[ht]
+\begin{table*}[pos=t]
 \centering
-\caption{Component 5: detector AUC-ROC vs the static-threshold baseline}
+\caption{Component 5: detector AUC-ROC vs the static-threshold baseline (slot-0 runs: scenarios P1, P2, P3, N1)}
 \label{tab:component5}
 \small
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lrrrrl}
 \hline
-\textbf{Detector} & \textbf{$n$ (full)} & \textbf{Median AUC (full)} & \textbf{Median AUC ($n=299$ paired)} & \textbf{95\% CI (full)} & \textbf{vs Baseline ($p_{\mathrm{Holm}}$)} \\
+\textbf{Detector} & \textbf{$n$ (full)} & \textbf{Median AUC (full)} & \textbf{Median AUC ($n=96$ paired)} & \textbf{95\% CI (full)} & \textbf{vs baseline ($p_{\mathrm{Holm}}$)} \\
 \hline
-Isolation Forest & 719 & 0.883 & 0.884 & [0.880, 0.889] & 8.14e-22$^*$ \\
-Autoencoder & 719 & 0.827 & 0.849 & [0.825, 0.829] & 2.28e-10$^*$ \\
-Deep SVDD & 719 & 0.805 & 0.811 & [0.798, 0.811] & 5.70e-01 \\
-EWMA & 719 & 0.582 & 0.618 & [0.575, 0.588] & 2.44e-35$^*$ \\
-Static threshold (baseline) & 299 & 0.840 & 0.840 & [0.819, 0.856] & (420 degenerate runs excluded) \\
+Isolation Forest & 240 & 0.871 & 0.872 & [0.866, 0.877] & $2.63\times10^{-13}$$^*$ \\
+Autoencoder & 240 & 0.821 & 0.826 & [0.817, 0.822] & $6.05\times10^{-8}$$^*$ \\
+Deep SVDD & 240 & 0.811 & 0.810 & [0.806, 0.818] & $7.29\times10^{-5}$$^*$ \\
+EWMA & 240 & 0.599 & 0.636 & [0.585, 0.612] & $4.87\times10^{-14}$$^*$ \\
+Static threshold (baseline) & 96 & 0.808 & 0.808 & [0.770, 0.825] & (144 degenerate runs excluded) \\
 \hline
-\end{tabular}
-\vspace{2mm}
-\raggedright\footnotesize `Full' = all scored runs (719 for detectors; 299 for the baseline, which produces a constant score, and is therefore excluded rather than reported at its literal AUC=0.5, on the other 420 -- see main text). `$n=299$ paired' = each detector's own median AUC computed on exactly the same 299 runs the confirmatory test uses, directly comparable to the baseline's 0.840. 95\% CIs are percentile bootstrap on the per-run median AUC (10{,}000 resamples, seed 42), computed on the full sample. $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank vs the static-threshold baseline on the 299-run paired subset, Holm-corrected across the 4 detectors. $^*$Significant at $\alpha=0.05$.
+\end{tabular}%
+}
+\par\vspace{2mm}
+\noindent\begin{minipage}{\linewidth}\raggedright\footnotesize `Full' = all 240 scored slot-0 runs for the detectors, and the 96 runs where the baseline is not constant (it gives one score for the whole run on the other 144, see main text). `$n=96$ paired' = each detector's median AUC on those 96 runs, comparable with the baseline's 0.808. 95\% CIs are percentile bootstrap on the per-run median AUC (10{,}000 resamples, seed 42). $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank against the baseline on the 96 paired runs, Holm-corrected across the 4 detectors. $^*$Significant at $\alpha=0.05$.\end{minipage}
 \end{table*}

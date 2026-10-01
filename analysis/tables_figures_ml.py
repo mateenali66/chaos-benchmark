@@ -73,10 +73,10 @@ def table6b_component2():
 
     lines = [
         r"\begin{table*}[ht]", r"\centering",
-        r"\caption{Component 2: overhead decomposition (Chaos Mesh, Cluster A; LitmusChaos/Cluster B unavailable)}",
+        r"\caption{Component 2: effect of Chaos Mesh on the application pods' mean CPU and memory per pod (Cluster A)}",
         r"\label{tab:component2}", r"\small",
         r"\begin{tabular}{lrrrrr}", r"\hline",
-        r"\textbf{Metric} & \textbf{Baseline} & \textbf{Idle} & \textbf{Fault} & \textbf{Standing overhead} & \textbf{Fault side effect} \\",
+        r"\textbf{Metric} & \textbf{Baseline} & \textbf{Idle} & \textbf{Fault} & \textbf{Idle $-$ baseline} & \textbf{Fault $-$ idle} \\",
         r" & (no tool) & (tool, no fault) & (tool + fault) & (idle $-$ baseline) & (fault $-$ idle) \\",
         r"\hline",
     ]
@@ -96,9 +96,8 @@ def table6b_component2():
         rf"\raggedright\footnotesize $n={n}$ repetitions per configuration. Values are bootstrap medians "
         r"(CPU in cores, memory in MB); overhead/side-effect columns show the median difference with a "
         r"95\% percentile bootstrap CI in brackets (10{,}000 resamples, seed 42). No significance test is "
-        r"registered for this component. LitmusChaos's entire overhead dataset "
-        r"(Cluster B, 30 runs) has empty Prometheus metrics from the original collection and is not reported "
-        r"here -- its overhead is unknown, not zero.",
+        r"registered for this component. The measure covers the application namespace only, not the tool's "
+        r"own pods. LitmusChaos is not reported (main text Section 4.3).",
         r"\end{table*}",
     ]
     (TABLE_DIR / "table6b_component2.tex").write_text("\n".join(lines))
@@ -213,8 +212,8 @@ def table8_component4(data: dict):
         r"\hline", r"\end{tabular}", r"\vspace{2mm}",
         r"\raggedright\footnotesize 95\% CIs are percentile bootstrap (10{,}000 resamples, seed 42). "
         r"``Constant predictor'' means the arm predicted the same label for every sample in its scored set, "
-        r"which mechanically produces balanced accuracy $=0.5$ with zero-width CI -- not the same statistical "
-        r"claim as genuine chance-level performance from varying predictions (Section~\ref{sec:meth-comp4}).",
+        r"which mechanically produces balanced accuracy $=0.5$ with zero-width CI. That differs from "
+        r"chance-level performance with varying predictions (Section~\ref{sec:meth-comp4}).",
         r"\end{table*}",
     ]
     (TABLE_DIR / "table8_component4.tex").write_text("\n".join(lines))
@@ -252,8 +251,18 @@ def fig11_component4_bars(data: dict):
 # ---------------------------------------------------------------------------
 
 def load_component5():
-    with open(RESULTS_DIR / "component5-scoring.json") as f:
+    # Slot-0 runs only: the other runs' sidecars hold slot 0's telemetry
+    # (analysis/component5_slot0.py, PREREGISTRATION.md erratum).
+    with open(RESULTS_DIR / "component5-slot0.json") as f:
         return json.load(f)
+
+
+def _p_tex(p: float) -> str:
+    """p-value for a table cell: three decimals, or a power of ten below 0.001."""
+    if p >= 0.001:
+        return f"{p:.3f}"
+    mant, exp = f"{p:.2e}".split("e")
+    return rf"${mant}\times10^{{{int(exp)}}}$"
 
 
 DETECTOR5_ORDER = ["isolation_forest", "autoencoder", "deep_svdd", "ewma", "static_threshold"]
@@ -262,40 +271,41 @@ DETECTOR5_ORDER = ["isolation_forest", "autoencoder", "deep_svdd", "ewma", "stat
 def table9_component5(data: dict):
     summary = data["summary"]
     confirmatory = data["confirmatory_vs_static_threshold"]
+    n_runs = data["n_runs_scored"]
+    base = summary["static_threshold"]
+    n_paired = base["n_scored"]
+    n_degen = base["n_degenerate_excluded"]
     lines = [
-        r"\begin{table*}[ht]", r"\centering",
-        r"\caption{Component 5: detector AUC-ROC vs the static-threshold baseline}",
+        r"\begin{table*}[pos=t]", r"\centering",
+        r"\caption{Component 5: detector AUC-ROC vs the static-threshold baseline (slot-0 runs: scenarios P1, P2, P3, N1)}",
         r"\label{tab:component5}", r"\small",
         r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{lrrrrl}", r"\hline",
-        r"\textbf{Detector} & \textbf{$n$ (full)} & \textbf{Median AUC (full)} & \textbf{Median AUC ($n=299$ paired)} & \textbf{95\% CI (full)} & \textbf{vs Baseline ($p_{\mathrm{Holm}}$)} \\",
+        rf"\textbf{{Detector}} & \textbf{{$n$ (full)}} & \textbf{{Median AUC (full)}} & \textbf{{Median AUC ($n={n_paired}$ paired)}} & \textbf{{95\% CI (full)}} & \textbf{{vs baseline ($p_{{\mathrm{{Holm}}}}$)}} \\",
         r"\hline",
     ]
     for name in DETECTOR5_ORDER:
         s = summary[name]
-        n = s["n_scored"]
-        med = f"{s['median_auc']:.3f}" if s["median_auc"] is not None else "--"
-        ci = f"[{s['ci_95_lo']:.3f}, {s['ci_95_hi']:.3f}]" if s.get("ci_95_lo") is not None else "--"
+        med = f"{s['median_auc']:.3f}"
+        ci = f"[{s['ci_95_lo']:.3f}, {s['ci_95_hi']:.3f}]"
         if name == "static_threshold":
-            excl = s["n_degenerate_excluded"]
             paired_med = med  # the baseline's scored runs are the paired subset
-            vs_base = rf"({excl} degenerate runs excluded)"
+            vs_base = f"({n_degen} degenerate runs excluded)"
         else:
             c = confirmatory[name]
-            paired_med = f"{c['median_auc_paired_subset']:.3f}" if c.get("median_auc_paired_subset") is not None else "--"
-            sig = "$^*$" if c.get("significant_after_holm") else ""
-            vs_base = f"{c['p_adjusted_holm']:.2e}{sig}" if c.get("p_adjusted_holm") is not None else "--"
-        lines.append(f"{DETECTOR_LABELS[name]} & {n} & {med} & {paired_med} & {ci} & {vs_base} \\\\")
+            paired_med = f"{c['median_auc_paired_subset']:.3f}"
+            vs_base = _p_tex(c["p_adjusted_holm"]) + ("$^*$" if c["significant_after_holm"] else "")
+        lines.append(f"{DETECTOR_LABELS[name]} & {s['n_scored']} & {med} & {paired_med} & {ci} & {vs_base} \\\\")
     lines += [
-        r"\hline", r"\end{tabular}%", r"}", r"\vspace{2mm}",
-        r"\raggedright\footnotesize `Full' = all scored runs (719 for detectors; 299 for the baseline, which "
-        r"produces a constant score, and is therefore excluded rather than reported at its literal AUC=0.5, on "
-        r"the other 420 -- see main text). `$n=299$ paired' = each detector's "
-        r"own median AUC computed on exactly the same 299 runs the confirmatory test uses, directly comparable to "
-        r"the baseline's 0.840. 95\% CIs are percentile bootstrap on the per-run median AUC (10{,}000 resamples, "
-        r"seed 42), computed on the full sample. $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank vs the "
-        r"static-threshold baseline on the 299-run paired subset, Holm-corrected across the 4 detectors. "
-        r"$^*$Significant at $\alpha=0.05$.",
+        r"\hline", r"\end{tabular}%", r"}", r"\par\vspace{2mm}",
+        r"\noindent\begin{minipage}{\linewidth}\raggedright\footnotesize "
+        rf"`Full' = all {n_runs} scored slot-0 runs for the detectors, and the {n_paired} runs where the baseline "
+        rf"is not constant (it gives one score for the whole run on the other {n_degen}, see main text). "
+        rf"`$n={n_paired}$ paired' = each detector's median AUC on those {n_paired} runs, comparable with the "
+        rf"baseline's {base['median_auc']:.3f}. 95\% CIs are percentile bootstrap on the per-run median AUC "
+        r"(10{,}000 resamples, seed 42). $p_{\mathrm{Holm}}$: two-sided paired Wilcoxon signed-rank against the "
+        rf"baseline on the {n_paired} paired runs, Holm-corrected across the 4 detectors. $^*$Significant at "
+        r"$\alpha=0.05$.\end{minipage}",
         r"\end{table*}",
     ]
     (TABLE_DIR / "table9_component5.tex").write_text("\n".join(lines))

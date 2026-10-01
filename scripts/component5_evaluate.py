@@ -100,35 +100,8 @@ def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> tuple[list[fl
     return adjusted, [a < alpha for a in adjusted]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Component 5 detector evaluation")
-    parser.add_argument("--limit", type=int, default=None, help="only process the first N run pairs (smoke testing)")
-    parser.add_argument("--out", default=str(PROJECT_ROOT / "analysis" / "results" / "component5-scoring.json"))
-    args = parser.parse_args()
-
-    pairs = list(find_run_pairs())
-    if args.limit:
-        pairs = pairs[: args.limit]
-    print(f"Evaluating {len(pairs)} Component 1 runs...")
-
-    per_run_results = []
-    t0 = time.time()
-    skipped = 0
-    for i, (run_json, ts_path) in enumerate(pairs):
-        r = evaluate_run(run_json, ts_path)
-        if r is None:
-            skipped += 1
-            continue
-        per_run_results.append(r)
-        if (i + 1) % 50 == 0:
-            elapsed = time.time() - t0
-            rate = (i + 1) / elapsed
-            eta = (len(pairs) - i - 1) / rate
-            print(f"  {i + 1}/{len(pairs)} done ({elapsed:.0f}s elapsed, ETA {eta:.0f}s), "
-                  f"{skipped} skipped so far")
-
-    print(f"Done: {len(per_run_results)} runs scored, {skipped} skipped (missing phases/insufficient data)")
-
+def summarize(per_run_results: list[dict]) -> tuple[dict, dict]:
+    """Per-scorer summary and the confirmatory test against the baseline."""
     scorer_names = list(DETECTORS.keys()) + [BASELINE_NAME]
     summary = {}
     for name in scorer_names:
@@ -189,6 +162,40 @@ def main():
         c = confirmatory[name]
         print(f"  {name}: n_paired={c['n_paired']} median_diff={c.get('median_diff')} "
               f"p_holm={c.get('p_adjusted_holm')} significant={c.get('significant_after_holm')}")
+
+    return summary, confirmatory
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Component 5 detector evaluation")
+    parser.add_argument("--limit", type=int, default=None, help="only process the first N run pairs (smoke testing)")
+    parser.add_argument("--out", default=str(PROJECT_ROOT / "analysis" / "results" / "component5-scoring.json"))
+    args = parser.parse_args()
+
+    pairs = list(find_run_pairs())
+    if args.limit:
+        pairs = pairs[: args.limit]
+    print(f"Evaluating {len(pairs)} Component 1 runs...")
+
+    per_run_results = []
+    t0 = time.time()
+    skipped = 0
+    for i, (run_json, ts_path) in enumerate(pairs):
+        r = evaluate_run(run_json, ts_path)
+        if r is None:
+            skipped += 1
+            continue
+        per_run_results.append(r)
+        if (i + 1) % 50 == 0:
+            elapsed = time.time() - t0
+            rate = (i + 1) / elapsed
+            eta = (len(pairs) - i - 1) / rate
+            print(f"  {i + 1}/{len(pairs)} done ({elapsed:.0f}s elapsed, ETA {eta:.0f}s), "
+                  f"{skipped} skipped so far")
+
+    print(f"Done: {len(per_run_results)} runs scored, {skipped} skipped (missing phases/insufficient data)")
+
+    summary, confirmatory = summarize(per_run_results)
 
     output = {
         "n_runs_scored": len(per_run_results),
