@@ -6,25 +6,25 @@ Reproducibility package for the paper (working title):
 >
 > Mateen Ali Anjum, Phono Technologies Inc., Kitchener, ON, Canada
 >
-> In preparation for the *Journal of Systems and Software* (Elsevier), 2026. An earlier, narrower version of this manuscript (a 2-tool benchmark with no ML component) was rejected after full peer review by *Software: Practice and Experience* (Wiley) in August 2026; both reviewers' core objection was that the title promised machine learning while the empirical work contained none. This repository reflects the reworked study, which adds three genuine ML components (Components 3-5 below) built and run against the same infrastructure. The rejected version is preserved at `../archive/spe-rejected-2026-08-15/`.
+> Manuscript in preparation, 2026. An earlier, narrower version of this manuscript (a 2-tool benchmark with no ML component) was rejected after full peer review by *Software: Practice and Experience* (Wiley) in August 2026; both reviewers' core objection was that the title promised machine learning while the empirical work contained none. This repository reflects the reworked study, which adds three genuine ML components (Components 3-5 below) built and run against the same infrastructure. The rejected version is preserved at `../archive/spe-rejected-2026-08-15/`.
 
 This repository contains the infrastructure code, experiment definitions, orchestration scripts, and statistical analysis for five components run against a [DeathStarBench](https://github.com/delimitrou/DeathStarBench) Social Network microservices testbed on AWS EKS; the raw experiment data is archived separately on Zenodo (see Data Availability below):
 
 | # | Component | What it measures | Status |
 |---|-----------|-------------------|--------|
 | 1 | Tool benchmark | Chaos Mesh vs LitmusChaos, 12 fault scenarios x n=30 reps (720 runs) | Complete |
-| 2 | Overhead decomposition | Standing chaos-agent overhead vs fault side effects, 3 configs x 10 reps | Complete for Chaos Mesh; LitmusChaos data lost to a Prometheus collection gap (disclosed) |
+| 2 | Overhead decomposition | Effect of an installed idle tool, and of a fault, on the application pods' mean CPU and memory, 3 configs x 10 reps | Complete for Chaos Mesh; LitmusChaos not reported (see the erratum in `analysis/PREREGISTRATION.md`) |
 | 3 | Fault-selection strategy | 5 arms (random, coverage heuristic, 3 LLMs) x 10 campaigns x K=10 injections (500 injections) | Complete |
 | 4 | LLM hypothesis generation | 3 LLMs predict fault impact from topology + baseline telemetry alone, scored against real ground truth (36 candidates) | Complete |
 | 5 | ML impact detection | EWMA / Isolation Forest / autoencoder / Deep SVDD vs a static-threshold baseline, trained per-run on Component 1's 720 sidecars | Complete |
 
-Every component's exact statistical methodology (metrics, tests, corrections, and any mid-study amendment with the reason it was made) is pre-registered and dated in [`analysis/PREREGISTRATION.md`](analysis/PREREGISTRATION.md) -- read that file for the authoritative methods description; this README summarizes it.
+Every component's statistical methodology (metrics, tests, corrections, and each mid-study amendment with the reason it was made) is in [`analysis/PREREGISTRATION.md`](analysis/PREREGISTRATION.md). Read its 2026-09-30 erratum first: the plan's first commit came after the Component 2 runs and the first 20 Component 1 runs, and the erratum lists every later deviation. This README summarizes the plan.
 
 ## Key Results
 
 **Component 1** (n=30/cell, Mann-Whitney U, Holm-Bonferroni within metric family): 2 of 12 scenarios show a significant, large-effect throughput difference between tools after correction -- HTTP Abort 503 (Chaos Mesh 77.5 vs LitmusChaos 115.6 rps, Cliff's d = -1.00) and Container Kill (Chaos Mesh 119.6 vs LitmusChaos 103.8 rps, d = +1.00). The other 10 scenarios show no significant difference.
 
-**Component 2**: Chaos Mesh's standing idle overhead is negligible (CPU and memory CIs both cross zero); its fault-phase side effects are small but real (CPU +0.0093 cores, memory +2.41 MB, both CIs exclude zero). LitmusChaos's overhead is unknown -- its entire 30-run overhead dataset has empty Prometheus metrics from the original collection, and both clusters are now torn down.
+**Component 2** (mean per pod across the application namespace, not the tools' own pods): with Chaos Mesh installed and idle, the application pods' CPU and memory do not change measurably (both CIs cross zero). During a fault they rise by 0.0093 cores per pod and 2.41 MB (both CIs exclude zero). LitmusChaos is not reported, because it runs its runner and fault pods inside the application namespace, so its per-pod average is not comparable.
 
 **Component 3** (Kruskal-Wallis across 5 arms, H=24.39, p=0.00007): the `coverage` heuristic is significantly worse at discovering unique weakness classes than all four other arms (large effects, Holm-corrected p<0.01 vs each). Random and all three LLM arms are statistically indistinguishable from each other -- LLM-driven fault selection does not significantly improve discovery over random selection.
 
@@ -78,7 +78,7 @@ chaos-benchmark/
 │   ├── run-campaign.py, run-all-campaigns.sh     # Component 3 fault-selection campaigns
 │   ├── run-hypothesis-generation.py, score-hypotheses.py, practitioner_heuristic.py  # Component 4
 │   ├── component5_features.py, component5_detectors.py, component5_evaluate.py       # Component 5
-│   ├── litmus_chaoscenter_client.py, register-chaoscenter-experiments.py  # ChaosCenter integration
+│   ├── litmus_chaoscenter_client.py, register-chaoscenter-experiments.py  # ChaosCenter registration (not used during the campaigns, see erratum)
 │   └── watchdogs/                 # Long-running campaign monitors (stall/error/cluster-health detection)
 ├── terraform/                     # EKS infrastructure (VPC, EKS, addons), 3 workspaces
 └── DeathStarBench/                # Vendored source (wrk2 build context)
@@ -156,14 +156,13 @@ This supersedes the earlier concept DOI 10.5281/zenodo.20574917, which archived 
 If you use this benchmark in your research, please cite:
 
 ```bibtex
-@article{anjum2026chaosjss,
+@misc{anjum2026chaos,
   title={Machine Learning for Chaos Engineering: A Taxonomy and a
          Three-Phase Empirical Evaluation of Fault Selection, Hypothesis
          Generation, and Impact Detection},
   author={Anjum, Mateen Ali},
-  journal={Journal of Systems and Software},
   year={2026},
-  note={In preparation}
+  note={Manuscript in preparation}
 }
 ```
 
